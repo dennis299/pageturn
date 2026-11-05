@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { generateChunk } from "@/lib/generate";
+import { HttpError } from "@/lib/http";
 
 type Row = Record<string, unknown>;
 
@@ -66,16 +67,63 @@ describe("generateChunk", () => {
     expect(r.chunk.status).toBe("ready");
   });
 
+  it("routes to the next free voice on a rate limit and switches the book to it", async () => {
+    const fake = fakeSupabase({ claim: [chunk], chunk, book });
+    const heygen = vi.fn(async () => {
+      throw new HttpError(429, "OpenRouter 429: free-models-per-day limit exceeded");
+    });
+    const gemini = vi.fn(async () => ({ audio: new Uint8Array([9]), durationSec: 3 }));
+    const r = await generateChunk(fake.client as never, "c1", {
+      getProvider: (id) => ({ synthesize: id === "gemini" ? gemini : heygen }) as never,
+      allowPaid: false,
+      checkBudget: async () => {},
+    });
+    expect(heygen).toHaveBeenCalledTimes(1);
+    expect(gemini).toHaveBeenCalledWith(expect.objectContaining({ voiceId: "Sulafat" }));
+    expect(r.switchedTo).toBe("Sulafat (Gemini)");
+    expect(fake.updates.some((u) => u.voice_provider === "gemini" && u.voice_id === "Sulafat")).toBe(true);
+    expect(fake.updates.at(-1)!.status).toBe("ready");
+  });
+
+  it("fails without routing when no free voice is left for a guest", async () => {
+    const fake = fakeSupabase({ claim: [chunk], chunk, book: { ...book, voice_provider: "gemini", voice_id: "Kore", voice_model: "gemini-3.8-flash-tts" } });
+    const limited = vi.fn(async () => {
+      throw new HttpError(429, "limit");
+    });
+    const r = await generateChunk(fake.client as never, "c1", {
+      getProvider: () => ({ synthesize: limited }) as never,
+      allowPaid: false,
+      checkBudget: async () => {},
+    });
+    // Gemini fails, then the free OpenRouter voice fails; Kokoro is paid so a guest never gets it.
+    expect(limited).toHaveBeenCalledTimes(2);
+    expect(r.chunk.status).toBe("failed");
+  });
+
+  it("never uses a paid voice for a guest, even if their book was switched to one", async () => {
+    const fake = fakeSupabase({ claim: [chunk], chunk, book: { voice_provider: "elevenlabs", voice_id: "Jon", voice_name: "Jon", voice_model: "eleven_flash_v2_5" } });
+    const eleven = vi.fn();
+    const free = vi.fn(async () => ({ audio: new Uint8Array([1]), durationSec: 2 }));
+    const r = await generateChunk(fake.client as never, "c1", {
+      getProvider: (id) => ({ synthesize: id === "elevenlabs" ? eleven : free }) as never,
+      allowPaid: false,
+      checkBudget: async () => {},
+    });
+    expect(eleven).not.toHaveBeenCalled();
+    expect(r.switchedTo).toBe("Nadine");
+    expect(r.chunk.status).toBe("ready");
+  });
+
   it("marks chunk failed and does not retry automatically", async () => {
     const fake = fakeSupabase({ claim: [chunk], chunk, book });
     const synthesize = vi.fn(async () => {
-      throw new Error("429 rate limited");
+      throw new Error("500 provider exploded");
     });
     const r = await generateChunk(fake.client as never, "c1", { getProvider: () => ({ synthesize }) as never });
     expect(synthesize).toHaveBeenCalledTimes(1);
     const last = fake.updates.at(-1)!;
     expect(last.status).toBe("failed");
-    expect(String(last.error)).toContain("429");
+    expect(String(last.error)).toContain("500");
     expect(r.chunk.status).toBe("failed");
   });
 });

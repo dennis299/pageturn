@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { checkCreateBook, getLimits } from "@/lib/auth/limits";
 import { HttpError, jsonError } from "@/lib/http";
 import { requireUser } from "@/lib/supabase/server";
 
@@ -34,6 +35,11 @@ export async function POST(request: Request) {
     const { supabase, user } = await requireUser();
     const b = Body.parse(await request.json());
     if (b.endPage < b.startPage) throw new HttpError(400, "The end page is before the start page.");
+    const limits = await getLimits(supabase, user);
+    if (limits.maxBooks !== null || limits.freeVoicesOnly) {
+      const { count } = await supabase.from("ab_books").select("id", { count: "exact", head: true });
+      checkCreateBook(limits, count ?? 0, { provider: b.voice.provider, model: b.voice.model });
+    }
 
     const { data: book, error } = await supabase
       .from("ab_books")

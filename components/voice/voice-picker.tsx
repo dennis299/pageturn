@@ -16,7 +16,7 @@ export type VoiceChoice = {
   pricing?: { prompt: number; completion: number };
 };
 
-type VoicesResponse = { voices: Voice[]; models?: readonly { id: string; name: string }[]; configured: boolean };
+type VoicesResponse = { voices: Voice[]; models?: readonly { id: string; name: string }[]; configured: boolean; allowed?: boolean };
 type Credits = { remaining: number; limit: number; resetsAt: string | null };
 
 const TABS: { id: ProviderId; label: string; hint: string }[] = [
@@ -137,6 +137,12 @@ export function VoicePicker({
           </button>
         ))}
       </div>
+
+      {current && current.allowed === false && (
+        <p className="rounded-lg border border-border bg-card p-3 text-sm text-muted-foreground">
+          These voices aren&apos;t on your account. The free voices work great. Try the first tab.
+        </p>
+      )}
 
       {current && !current.configured && (
         <p className="flex gap-2 rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-sm">

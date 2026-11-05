@@ -77,3 +77,30 @@ describe("ensureStart", () => {
     expect(ensureStart([{ title: "One", page: 5 }], 5)).toEqual([{ title: "One", page: 5 }]);
   });
 });
+
+import { chapterTitle } from "@/lib/book/chapters";
+describe("chapterTitle", () => {
+  it("turns bare numbers into 'Chapter N'", () => {
+    expect(chapterTitle("4")).toBe("Chapter 4");
+    expect(chapterTitle("12.")).toBe("Chapter 12");
+    expect(chapterTitle("IV")).toBe("Chapter IV");
+  });
+  it("leaves real titles alone", () => {
+    expect(chapterTitle("Chapter 4: Beginnings")).toBe("Chapter 4: Beginnings");
+    expect(chapterTitle("4 The Big Idea")).toBe("4 The Big Idea");
+    expect(chapterTitle("Prologue")).toBe("Prologue");
+  });
+  it("is applied to detected chapters", () => {
+    const r = detectChapters({
+      outline: [],
+      candidates: [
+        { page: 7, text: "1", fontSize: 24 },
+        { page: 20, text: "2", fontSize: 24 },
+      ],
+      bodyFontSize: 11,
+      startPage: 1,
+      endPage: 50,
+    });
+    expect(r?.map((c) => c.title)).toEqual(["Chapter 1", "Chapter 2"]);
+  });
+});

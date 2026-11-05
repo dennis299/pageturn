@@ -245,3 +245,101 @@
 /* Each screen fades in instead of popping. */
 @keyframes page-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
 .page-in { animation: page-in 200ms cubic-bezier(0.2, 0.7, 0.2, 1) both; }
+
+/* ──────────────────────────────────────────────────────────────────────────
+   Native look per phone. <html data-platform="ios|android|desktop"> is set
+   before first paint (app/layout.tsx). Unlayered, so it wins over utilities.
+   ────────────────────────────────────────────────────────────────────────── */
+.nav-indicator { display: flex; align-items: center; justify-content: center; }
+.sheet-grabber { display: none; }
+
+/* ---------- iPhone: iOS 26 "Liquid Glass" ---------- */
+html[data-platform="ios"] {
+  --font-ui: -apple-system, "SF Pro Text", system-ui, sans-serif;
+  --glass: color-mix(in oklab, var(--card) 58%, transparent);
+  --glass-edge: rgb(255 255 255 / 0.16);
+  --glass-shine: inset 0 1px 0 rgb(255 255 255 / 0.16), inset 0 -1px 0 rgb(0 0 0 / 0.18);
+}
+html[data-platform="ios"]:not(.dark) {
+  --glass: color-mix(in oklab, #ffffff 62%, transparent);
+  --glass-edge: rgb(0 0 0 / 0.08);
+  --glass-shine: inset 0 1px 0 rgb(255 255 255 / 0.9), inset 0 -1px 0 rgb(0 0 0 / 0.04);
+}
+html[data-platform="ios"] .bottom-chrome {
+  padding: 0 14px calc(env(safe-area-inset-bottom) + 6px);
+  pointer-events: none;
+}
+html[data-platform="ios"] .bottom-chrome > * { pointer-events: auto; }
+html[data-platform="ios"] .nav-bar,
+html[data-platform="ios"] .mini-bar {
+  border: 0.5px solid var(--glass-edge);
+  border-radius: 999px;
+  background: var(--glass);
+  -webkit-backdrop-filter: blur(22px) saturate(1.8);
+  backdrop-filter: blur(22px) saturate(1.8);
+  box-shadow: 0 12px 32px -12px rgb(0 0 0 / 0.55), var(--glass-shine);
+}
+html[data-platform="ios"] .nav-bar { padding: 5px; transition: padding 250ms ease; }
+html[data-platform="ios"] .mini-bar { margin-bottom: 8px; padding: 6px 6px 6px 10px; }
+html[data-platform="ios"] .nav-item { min-height: 54px; border-radius: 999px; transition: background-color 200ms ease, min-height 250ms ease; }
+html[data-platform="ios"] .nav-item.is-active { background: color-mix(in oklab, var(--foreground) 11%, transparent); }
+html[data-platform="ios"] .nav-item .pending-bar { bottom: 3px; }
+html[data-platform="ios"] .bottom-chrome[data-compact] .nav-label { display: none; }
+html[data-platform="ios"] .bottom-chrome[data-compact] .nav-item { min-height: 40px; }
+html[data-platform="ios"] [data-slot="sheet-content"][data-side="bottom"] {
+  left: 8px; right: 8px; bottom: 8px;
+  border: 0.5px solid var(--glass-edge);
+  border-radius: 34px;
+  background: color-mix(in oklab, var(--popover) 80%, transparent);
+  -webkit-backdrop-filter: blur(30px) saturate(1.6);
+  backdrop-filter: blur(30px) saturate(1.6);
+  box-shadow: 0 20px 50px -20px rgb(0 0 0 / 0.6), var(--glass-shine);
+}
+html[data-platform="ios"] .sheet-grabber,
+html[data-platform="android"] .sheet-grabber {
+  display: block; flex: none; width: 36px; height: 5px; margin: 8px auto -8px; border-radius: 3px;
+  background: color-mix(in oklab, var(--foreground) 28%, transparent);
+}
+html[data-platform="ios"] [data-slot="dropdown-menu-content"] {
+  border-radius: 22px;
+  background: var(--glass);
+  -webkit-backdrop-filter: blur(24px) saturate(1.8);
+  backdrop-filter: blur(24px) saturate(1.8);
+  box-shadow: 0 16px 40px -16px rgb(0 0 0 / 0.6), var(--glass-shine);
+}
+html[data-platform="ios"] [data-slot="button"] { border-radius: 999px; }
+html[data-platform="ios"] .rounded-2xl { border-radius: 26px; }
+
+/* ---------- Android: Material 3 Expressive ---------- */
+html[data-platform="android"] {
+  --font-ui: Roboto, "Google Sans Flex", "Google Sans", system-ui, sans-serif;
+  --m3-container: color-mix(in oklab, var(--card) 72%, var(--background));
+  --m3-indicator: color-mix(in oklab, var(--foil) 30%, transparent);
+  --spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+html[data-platform="android"] .nav-bar {
+  border-top: 0;
+  background: var(--m3-container);
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+  padding-top: 12px;
+  min-height: 80px;
+}
+html[data-platform="android"] .nav-item { gap: 4px; font-size: 12px; font-weight: 500; letter-spacing: 0.01em; }
+html[data-platform="android"] .nav-indicator {
+  width: 56px; height: 32px; border-radius: 16px;
+  transition: width 350ms var(--spring), background-color 200ms ease;
+}
+html[data-platform="android"] .nav-item.is-active .nav-indicator { width: 64px; background: var(--m3-indicator); }
+html[data-platform="android"] .nav-item .pending-bar { display: none; }
+html[data-platform="android"] .nav-item:active .nav-indicator { background: color-mix(in oklab, var(--foreground) 12%, transparent); }
+html[data-platform="android"] .mini-bar {
+  margin: 0 8px 8px; border: 0; border-radius: 20px; background: var(--m3-container);
+  box-shadow: 0 4px 12px -4px rgb(0 0 0 / 0.4);
+}
+html[data-platform="android"] [data-slot="sheet-content"][data-side="bottom"] { border-radius: 28px 28px 0 0; border-top: 0; background: var(--m3-container); }
+html[data-platform="android"] [data-slot="dropdown-menu-content"] { border-radius: 16px; }
+html[data-platform="android"] [data-slot="button"] { border-radius: 999px; }
+html[data-platform="android"] .rounded-2xl { border-radius: 28px; }
+html[data-platform="android"] .press { transition: transform 380ms var(--spring), background-color 150ms ease, color 150ms ease; }
+html[data-platform="android"] .press:active { transform: scale(0.93); transition-duration: 90ms; }

@@ -65,7 +65,10 @@ without paying for a whole book's worth of narration up front, and without losin
 - 📶 **Offline chapters.** Download the next two chapters before a flight.
 - 📊 **Stats.** Minutes per day, a 12-week heatmap, a daily goal, a streak and an evening reminder.
 - 📱 **Installable.** Add it to your iPhone or Android home screen and it opens full screen, like a native app.
-- 🔒 **Private.** Only allow-listed emails can log in. Every database row and audio file is locked to its owner.
+- 🔀 **Voice auto-routing.** If a voice hits a rate limit, a daily cap or runs out of credit, the next part is made with the next voice (OpenRouter free → Gemini on a free AI Studio key → Kokoro). The rest of the book switches with it, so voices don't flip back and forth. ElevenLabs is never picked automatically.
+- 👥 **Guest accounts.** The owner can invite people from Settings and set limits for each one: free voices only, minutes of new audio a month, and how many books at once.
+- 📱 **Native look on each phone.** iPhone gets iOS 26 Liquid Glass (a floating frosted tab bar that slims down as you scroll, glass sheets, the system font). Android gets Material 3 Expressive (a pill navigation indicator, 28 px shapes, springy motion).
+- 🔒 **Private.** Only the owner's emails and invited guests can log in. Every database row and audio file is locked to its owner.
 
 ## How it works
 

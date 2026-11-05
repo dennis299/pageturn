@@ -58,6 +58,7 @@ function SheetContent({
         )}
         {...props}
       >
+        {side === "bottom" && <div data-slot="sheet-grabber" className="sheet-grabber" aria-hidden />}
         {children}
         {showCloseButton && (
           <SheetPrimitive.Close

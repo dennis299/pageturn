@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link, { useLinkStatus } from "next/link";
 import { usePathname } from "next/navigation";
 import { ChartNoAxesColumn, LibraryBig, Plus, Settings2 } from "lucide-react";
@@ -49,11 +49,17 @@ function NavItem({
               "flex h-11 items-center gap-3 rounded-lg px-3 text-sm text-sidebar-foreground/75 transition-colors hover:bg-sidebar-accent hover:text-sidebar-foreground",
               active && "bg-sidebar-accent font-medium text-sidebar-foreground",
             )
-          : cn("flex min-h-14 flex-col items-center justify-center gap-1 text-[11px] text-muted-foreground transition-colors", active && "text-foreground"),
+          : cn("nav-item flex min-h-14 flex-col items-center justify-center gap-1 text-[11px] text-muted-foreground transition-colors", active && "is-active text-foreground"),
       )}
     >
-      <Icon className={cn(variant === "rail" ? "size-[18px]" : "size-5", variant === "bar" && active && "text-foil")} aria-hidden />
-      {label}
+      {variant === "bar" ? (
+        <span className="nav-indicator">
+          <Icon className={cn("size-5", active && "text-foil")} aria-hidden />
+        </span>
+      ) : (
+        <Icon className="size-[18px]" aria-hidden />
+      )}
+      <span className="nav-label">{label}</span>
       <PendingDot />
     </Link>
   );
@@ -71,6 +77,19 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   // The tab you just tapped, remembered against the page you tapped it on, so it shows as active at once.
   const [tapped, setTapped] = useState<{ href: string; from: string } | null>(null);
   const activeHref = tapped && tapped.from === path ? tapped.href : NAV.find((n) => isActive(path, n.href))?.href;
+  // iPhone (iOS 26): the floating tab bar slims down to icons while you scroll down, and grows back on scroll up.
+  const [compact, setCompact] = useState(false);
+  const lastY = useRef(0);
+  useEffect(() => {
+    const onScroll = () => {
+      const y = window.scrollY;
+      if (Math.abs(y - lastY.current) < 8) return;
+      setCompact(y > lastY.current && y > 80);
+      lastY.current = y;
+    };
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
   const items = (variant: "rail" | "bar") =>
     NAV.map((n) => (
       <NavItem
@@ -100,9 +119,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <div className="flex min-w-0 flex-1 flex-col">
         <main className={cn("flex-1", !inPlayer && "pb-36 md:pb-10")}>{children}</main>
         {!inPlayer && (
-          <div className="app-chrome fixed inset-x-0 bottom-0 z-40 md:hidden">
+          <div className="app-chrome bottom-chrome fixed inset-x-0 bottom-0 z-40 md:hidden" data-compact={compact ? "1" : undefined}>
             <MiniPlayer variant="bar" />
-            <nav className="pb-safe grid grid-cols-4 border-t border-border bg-background/92 backdrop-blur-md" aria-label="Main">
+            <nav className="nav-bar pb-safe grid grid-cols-4 border-t border-border bg-background/92 backdrop-blur-md" aria-label="Main">
               {items("bar")}
             </nav>
           </div>

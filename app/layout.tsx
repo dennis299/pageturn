@@ -33,6 +33,14 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html lang="en" suppressHydrationWarning className={`${ui.variable} ${serif.variable} ${mono.variable} h-full antialiased`}>
+      <head>
+        {/* Marks the phone platform before first paint, so iPhone and Android each get their native look. */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(){var u=navigator.userAgent,d=document.documentElement;var ios=/iPhone|iPad|iPod/.test(u)||(/Macintosh/.test(u)&&navigator.maxTouchPoints>1);d.dataset.platform=ios?"ios":/Android/.test(u)?"android":"desktop";if(window.matchMedia("(display-mode: standalone)").matches||navigator.standalone)d.dataset.standalone="1";})();`,
+          }}
+        />
+      </head>
       <body className="min-h-full bg-background text-foreground">
         <Providers>{children}</Providers>
       </body>

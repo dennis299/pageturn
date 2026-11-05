@@ -1,4 +1,5 @@
 "use client";
+import { toast } from "sonner";
 import { BlobUrlCache } from "@/lib/audio/blob-cache";
 import type { BookRow, ChunkRow, ProviderId } from "@/lib/db/types";
 import { createClient } from "@/lib/supabase/client";
@@ -391,8 +392,10 @@ export class PlayerStore {
       pos.chunkIdx,
     ).filter((i) => !this.inflight.has(i));
 
+    // The free Gemini key has a low per-minute limit, so Gemini books make one part at a time.
+    const parallel = book.voice_provider === "gemini" ? 1 : MAX_PARALLEL;
     for (const idx of todo) {
-      if (this.inflight.size >= MAX_PARALLEL) break;
+      if (this.inflight.size >= parallel) break;
       const ch = this.chapterOf(idx);
       if (!ch) continue;
       const cost = this.chapterCost(ch);
@@ -424,6 +427,7 @@ export class PlayerStore {
         provider: row.provider,
       });
       if (row.status === "failed") this.set({ error: row.error ?? "Couldn't make the audio for this part." });
+      if (j.switchedTo) void this.onVoiceSwitched(j.switchedTo);
       if (row.status === "generating") setTimeout(() => this.refreshChunk(idx), 5000);
       if (row.status === "ready" && this.state.book?.voice_provider === "elevenlabs") void this.refreshCredits();
     } catch (e) {
@@ -439,6 +443,17 @@ export class PlayerStore {
       this.blobs.get(now).catch(() => {});
     }
     if (now?.status !== "failed") this.pump();
+  }
+
+  /** The server routed to another voice because this one hit a limit: follow it for the rest of the book. */
+  private async onVoiceSwitched(name: string) {
+    const b = this.state.book;
+    if (!b) return;
+    toast.message(`Switched to ${name}`, { description: "The previous voice hit its limit, so the rest of the book uses this one." });
+    const { data } = await createClient().from("ab_books").select("voice_provider,voice_id,voice_name,voice_model").eq("id", b.id).single();
+    if (data) this.set({ book: { ...this.state.book!, ...data } as BookRow });
+    this.orPricing = undefined;
+    await this.prepareCosts();
   }
 
   private async refreshChunk(idx: number) {

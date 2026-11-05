@@ -11,7 +11,7 @@ export default async function SettingsPage() {
   return (
     <div className="pt-safe mx-auto w-full max-w-2xl px-5 py-6 sm:px-8 md:py-10">
       <h1 className="font-serif text-3xl sm:text-4xl">Settings</h1>
-      <SettingsForm goal={s.goal} push={s.push} email={user.email ?? ""} />
+      <SettingsForm goal={s.goal} push={s.push} email={user.email ?? ""} isOwner={user.role === "owner"} />
     </div>
   );
 }

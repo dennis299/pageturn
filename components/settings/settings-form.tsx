@@ -8,6 +8,8 @@ import { api } from "@/lib/api";
 import { listOfflineBooks, offlineUsage, removeDownload, type OfflineSnapshot } from "@/lib/offline/books";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
+import { ChangePassword } from "./change-password";
+import { GuestsSection } from "./guests";
 
 const GOALS = [10, 15, 20, 30, 45, 60, 90];
 
@@ -27,7 +29,17 @@ function Section({ title, children, description }: { title: string; description?
   );
 }
 
-export function SettingsForm({ goal: initialGoal, push: initialPush, email }: { goal: number; push: boolean; email: string }) {
+export function SettingsForm({
+  goal: initialGoal,
+  push: initialPush,
+  email,
+  isOwner,
+}: {
+  goal: number;
+  push: boolean;
+  email: string;
+  isOwner: boolean;
+}) {
   const [goal, setGoal] = useState(initialGoal);
   const [push, setPush] = useState(initialPush);
   const [pushBusy, setPushBusy] = useState(false);
@@ -44,10 +56,10 @@ export function SettingsForm({ goal: initialGoal, push: initialPush, email }: { 
   const vapid = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
 
   useEffect(() => {
-    api<{ remaining: number; limit: number; resetsAt: string | null }>("/api/elevenlabs/credits").then(setCredits).catch(() => {});
+    if (isOwner) api<{ remaining: number; limit: number; resetsAt: string | null }>("/api/elevenlabs/credits").then(setCredits).catch(() => {});
     listOfflineBooks().then(setDownloads).catch(() => setDownloads([]));
     offlineUsage().then(setUsage);
-  }, []);
+  }, [isOwner]);
 
   async function saveGoal(g: number) {
     setGoal(g);
@@ -114,6 +126,9 @@ export function SettingsForm({ goal: initialGoal, push: initialPush, email }: { 
         </Button>
       </Section>
 
+      {isOwner && <GuestsSection />}
+
+      {isOwner && (
       <Section title="ElevenLabs credits" description="Shared with your YouTube narration.">
         {credits ? (
           <>
@@ -129,6 +144,7 @@ export function SettingsForm({ goal: initialGoal, push: initialPush, email }: { 
           <p className="text-sm text-muted-foreground">Checking…</p>
         )}
       </Section>
+      )}
 
       <Section title="Downloads" description={usage !== null ? `About ${(usage / 1e6).toFixed(0)} MB stored on this device.` : undefined}>
         {downloads === null ? (
@@ -181,6 +197,8 @@ export function SettingsForm({ goal: initialGoal, push: initialPush, email }: { 
       </Section>
 
       <Section title="Account" description={email}>
+        <ChangePassword />
+        <div className="my-5 h-px bg-border" />
         <form action="/auth/signout" method="post">
           <Button variant="outline" type="submit" className="h-11">
             <LogOut aria-hidden /> Log out

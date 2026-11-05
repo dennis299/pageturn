@@ -22,7 +22,7 @@ export function MiniPlayer({ variant }: { variant: "bar" | "rail" }) {
     <div
       className={cn(
         "flex items-center gap-3",
-        variant === "bar" ? "border-t border-border bg-card/95 px-4 py-2 backdrop-blur-md" : "rounded-xl border border-sidebar-border bg-card p-2.5",
+        variant === "bar" ? "mini-bar border-t border-border bg-card/95 px-4 py-2 backdrop-blur-md" : "rounded-xl border border-sidebar-border bg-card p-2.5",
       )}
     >
       <Link href={`/book/${book.id}`} className="flex min-w-0 flex-1 items-center gap-3">

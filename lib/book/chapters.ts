@@ -3,10 +3,17 @@ import type { ChapterDraft } from "./types";
 
 const CHAPTERISH = /^(chapter|part|book|prologue|epilogue|introduction|preface|conclusion)\b|^\d+\.?\s+\S|^[IVXLC]+\.?\s/i;
 
+/** "4" → "Chapter 4", "IV" → "Chapter IV"; real titles are left as they are. */
+export function chapterTitle(raw: string): string {
+  const t = raw.trim();
+  const bare = t.match(/^(\d{1,3}|[IVXLC]{1,7})\.?$/i);
+  return bare ? `Chapter ${bare[1].toUpperCase()}` : t;
+}
+
 function onePerPage(list: ChapterDraft[]): ChapterDraft[] {
   const out: ChapterDraft[] = [];
   for (const c of [...list].sort((a, b) => a.page - b.page)) {
-    if (!out.length || out[out.length - 1].page !== c.page) out.push(c);
+    if (!out.length || out[out.length - 1].page !== c.page) out.push({ ...c, title: chapterTitle(c.title) });
   }
   return out;
 }

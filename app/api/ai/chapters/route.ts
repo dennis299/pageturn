@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { generateText, parseJsonReply } from "@/lib/ai/text";
+import { chapterTitle } from "@/lib/book/chapters";
 import { jsonError } from "@/lib/http";
 import { requireUser } from "@/lib/supabase/server";
 
@@ -31,7 +32,8 @@ export async function POST(request: Request) {
     const clean = chapters
       .filter((c) => c.page >= startPage && c.page <= endPage)
       .sort((a, b) => a.page - b.page)
-      .filter((c, i, arr) => i === 0 || arr[i - 1].page !== c.page);
+      .filter((c, i, arr) => i === 0 || arr[i - 1].page !== c.page)
+      .map((c) => ({ ...c, title: chapterTitle(c.title) }));
     return Response.json({ chapters: clean });
   } catch (e) {
     return jsonError(e);

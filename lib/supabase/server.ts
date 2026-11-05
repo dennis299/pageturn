@@ -3,8 +3,7 @@ import { cache } from "react";
 import { createServerClient } from "@supabase/ssr";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { cookies } from "next/headers";
-import { isAllowedEmail } from "@/lib/auth/allowlist";
-import { userFromClaims, type AppUser } from "@/lib/auth/claims";
+import { accessRole, userFromClaims, type AppUser } from "@/lib/auth/claims";
 import { ALLOWED_EMAILS, SUPABASE_KEY, SUPABASE_URL } from "@/lib/env";
 import { HttpError } from "@/lib/http";
 
@@ -33,8 +32,9 @@ export async function createServerSupabase(): Promise<SupabaseClient> {
 export const requireUser = cache(async (): Promise<{ supabase: SupabaseClient; user: AppUser }> => {
   const supabase = await createServerSupabase();
   const { data } = await supabase.auth.getClaims();
-  const user = userFromClaims(data?.claims);
-  if (!user) throw new HttpError(401, "Please log in.");
-  if (!isAllowedEmail(user.email, ALLOWED_EMAILS)) throw new HttpError(403, "This app is private.");
-  return { supabase, user };
+  const base = userFromClaims(data?.claims);
+  if (!base) throw new HttpError(401, "Please log in.");
+  const role = accessRole(data?.claims, ALLOWED_EMAILS);
+  if (!role) throw new HttpError(403, "This app is private.");
+  return { supabase, user: { ...base, role } };
 });
