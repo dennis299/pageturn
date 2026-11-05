@@ -39,3 +39,11 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+.superpowers/
+.env*.local
+public/pdf.worker.min.mjs
+tests-live/out/
+
+.vercel
+.env*

@@ -1,26 +1,223 @@
 @import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
+@custom-variant dark (&:is(.dark *));
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --font-sans: var(--font-ui);
+  --font-mono: var(--font-plex-mono);
+  --font-heading: var(--font-newsreader);
+  --font-serif: var(--font-newsreader);
+  --color-foil: var(--foil);
+  --color-ribbon: var(--ribbon);
+  --color-chart-mark: var(--chart-mark);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+:root {
+  /* Daylight: pale linen and bottle-green ink */
+  --background: #eef1ea;
+  --foreground: #13261f;
+  --card: #fafbf7;
+  --card-foreground: #13261f;
+  --popover: #fafbf7;
+  --popover-foreground: #13261f;
+  --primary: #1f4a3c;
+  --primary-foreground: #f3eedf;
+  --secondary: #e1e7de;
+  --secondary-foreground: #13261f;
+  --muted: #e1e7de;
+  --muted-foreground: #4a5e55;
+  --accent: #e4dcc0;
+  --accent-foreground: #13261f;
+  --destructive: #b23a26;
+  --border: #cdd6ce;
+  --input: #c3cdc4;
+  --ring: #8a6a12;
+  --foil: #8a6a12;
+  --ribbon: #b23a26;
+  /* Chart marks (validated with the dataviz validator against the card surface) */
+  --chart-mark: #8a6a12;
+  /* Logo: deeper gold/red on light paper so the mark keeps its contrast */
+  --logo-gold: #a8801c;
+  --logo-ribbon: #c2452c;
+  --chart-1: #1f4a3c;
+  --chart-2: #8a6a12;
+  --chart-3: #b23a26;
+  --chart-4: #4a5e55;
+  --chart-5: #cdd6ce;
+  --radius: 0.75rem;
+  --sidebar: #e6ebe3;
+  --sidebar-foreground: #13261f;
+  --sidebar-primary: #1f4a3c;
+  --sidebar-primary-foreground: #f3eedf;
+  --sidebar-accent: #dbe2d8;
+  --sidebar-accent-foreground: #13261f;
+  --sidebar-border: #cdd6ce;
+  --sidebar-ring: #8a6a12;
+}
+
+.dark {
+  /* Night: bindery cloth, gold foil, bone paper */
+  --background: #0f211b;
+  --foreground: #ede6d3;
+  --card: #16302a;
+  --card-foreground: #ede6d3;
+  --popover: #18342d;
+  --popover-foreground: #ede6d3;
+  --primary: #d9b45a;
+  --primary-foreground: #10241e;
+  --secondary: #1d3a32;
+  --secondary-foreground: #ede6d3;
+  --muted: #1a352e;
+  --muted-foreground: #a3b5ab;
+  --accent: #23443a;
+  --accent-foreground: #ede6d3;
+  --destructive: #e0664f;
+  --border: rgb(237 230 211 / 0.12);
+  --input: rgb(237 230 211 / 0.18);
+  --ring: #d9b45a;
+  --foil: #d9b45a;
+  --ribbon: #c8452f;
+  --chart-mark: #b08a38;
+  --logo-gold: #d9b45a;
+  --logo-ribbon: #d4553b;
+  --chart-1: #d9b45a;
+  --chart-2: #7fb39c;
+  --chart-3: #c8452f;
+  --chart-4: #a3b5ab;
+  --chart-5: #23443a;
+  --sidebar: #0c1b16;
+  --sidebar-foreground: #ede6d3;
+  --sidebar-primary: #d9b45a;
+  --sidebar-primary-foreground: #10241e;
+  --sidebar-accent: #1a352e;
+  --sidebar-accent-foreground: #ede6d3;
+  --sidebar-border: rgb(237 230 211 / 0.1);
+  --sidebar-ring: #d9b45a;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+  button:not(:disabled), [role="button"]:not(:disabled) {
+    cursor: pointer;
+  }
+  html {
+    @apply font-sans;
+  }
+}
+@layer base {
+  html {
+    -webkit-tap-highlight-color: transparent;
+  }
+  body {
+  }
+  .tabular {
+    font-variant-numeric: tabular-nums;
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+/* Safe areas for the iPhone home indicator and notch */
+.pb-safe { padding-bottom: max(env(safe-area-inset-bottom), 0.5rem); }
+.pt-safe { padding-top: env(safe-area-inset-top); }
+
+/* Book cloth: a fine woven texture over a solid cloth colour */
+.cloth {
+  background-color: var(--cloth, #1e4636);
+  background-image:
+    repeating-linear-gradient(45deg, rgb(255 255 255 / 0.035) 0 1px, transparent 1px 3px),
+    repeating-linear-gradient(-45deg, rgb(0 0 0 / 0.08) 0 1px, transparent 1px 3px),
+    linear-gradient(100deg, rgb(0 0 0 / 0.25), transparent 14%, transparent 86%, rgb(0 0 0 / 0.18));
 }
+.foil-text {
+  color: #e2c373;
+  text-shadow: 0 1px 0 rgb(0 0 0 / 0.35), 0 -1px 0 rgb(255 240 200 / 0.12);
+}
+.ribbon-tail {
+  clip-path: polygon(0 0, 100% 0, 100% 100%, 50% calc(100% - 7px), 0 100%);
+}
+
+/* Read-along: the sentence being spoken */
+.sentence-active {
+  background: color-mix(in oklab, var(--foil) 22%, transparent);
+  box-shadow: 0 2px 0 0 var(--foil);
+  border-radius: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; scroll-behavior: auto !important; }
+}
+
+/* Chapter scrubber: a thin cloth track that fills with foil, and a ribbon-red thumb */
+.scrubber::-webkit-slider-runnable-track {
+  height: 4px;
+  border-radius: 999px;
+  background: linear-gradient(to right, var(--foil) var(--pct), var(--muted) var(--pct));
+}
+.scrubber::-moz-range-track {
+  height: 4px;
+  border-radius: 999px;
+  background: linear-gradient(to right, var(--foil) var(--pct), var(--muted) var(--pct));
+}
+.scrubber::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  margin-top: -6px;
+  width: 16px;
+  height: 16px;
+  border-radius: 999px;
+  background: var(--foreground);
+  border: 3px solid var(--background);
+  box-shadow: 0 0 0 1px var(--foil);
+}
+.scrubber::-moz-range-thumb {
+  width: 12px;
+  height: 12px;
+  border-radius: 999px;
+  background: var(--foreground);
+  border: 3px solid var(--background);
+}
+.scrubber:focus-visible { outline: 2px solid var(--ring); outline-offset: 4px; border-radius: 4px; }

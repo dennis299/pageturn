@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256"><title>Pageturn logo</title><g transform="translate(-13.82 -18.6) scale(1.108)">
+  
+  <!-- Ribbon P: the P's stem becomes a bookmark ribbon where the bowl ends (y = 157). -->
+  <path fill="#D9B45A" fill-rule="evenodd" d="M64 33 H130 A62 62 0 0 1 130 157 H64 Z M112 75 H130 A20 20 0 0 1 130 115 H112 Z"/>
+  <path fill="#D4553B" d="M64 157 H112 V227 L88 203 L64 227 Z"/>
+</g></svg>

@@ -1,0 +1,10 @@
+# Never upload local secrets or working files
+.env
+.env.*
+!.env.example
+.superpowers/
+tests-live/
+brand/
+.next/
+node_modules/
+public/pdf.worker.min.mjs

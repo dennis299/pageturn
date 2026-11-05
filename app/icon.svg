@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256"><title>Pageturn logo</title><g transform="translate(5.12 2.56) scale(0.96)">
+  
+  <!-- Small-size source: the mark on a bottle-green tile so it reads on light and dark browser tabs. -->
+  <rect width="256" height="256" rx="56" fill="#0F211B"/>
+  <g transform="translate(128 128) scale(0.7) translate(-128 -130)">
+    <path fill="#D9B45A" fill-rule="evenodd" d="M64 33 H130 A62 62 0 0 1 130 157 H64 Z M112 75 H130 A20 20 0 0 1 130 115 H112 Z"/>
+    <path fill="#D4553B" d="M64 157 H112 V227 L88 203 L64 227 Z"/>
+  </g>
+</g></svg>

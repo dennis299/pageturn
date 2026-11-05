@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" fill-rule="evenodd">
+  <title>Pageturn: shelf meter</title>
+  <g transform="translate(-5 -6)">
+    <path fill="#000" d="M40 120 Q40 112 48 112 H64 Q72 112 72 120 V208 H40 Z M40 130 H72 V138 H40 Z"/>
+    <path fill="#000" d="M82 64 Q82 56 90 56 H106 Q114 56 114 64 V208 H82 Z M82 74 H114 V82 H82 Z"/>
+    <path fill="#000" d="M124 92 Q124 84 132 84 H148 Q156 84 156 92 V208 H124 Z M124 102 H156 V110 H124 Z"/>
+    <g transform="rotate(15 166 208)"><path fill="#000" d="M166 112 Q166 104 174 104 H190 Q198 104 198 112 V208 H166 Z M166 122 H198 V130 H166 Z"/></g>
+  </g>
+</svg>

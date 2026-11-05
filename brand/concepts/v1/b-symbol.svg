@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" fill-rule="evenodd">
+  <!-- B: book spines standing like an audio level meter; the last one leans like a real book -->
+  <path fill="#000" d="M36 112 Q36 104 44 104 H64 Q72 104 72 112 V208 H36 Z M36 124 H72 V132 H36 Z"/>
+  <path fill="#000" d="M84 64 Q84 56 92 56 H112 Q120 56 120 64 V208 H84 Z M84 76 H120 V84 H84 Z"/>
+  <path fill="#000" d="M132 88 Q132 80 140 80 H160 Q168 80 168 88 V208 H132 Z M132 100 H168 V108 H132 Z"/>
+  <g transform="rotate(20 182 208)"><path fill="#000" d="M182 64 Q182 56 190 56 H210 Q218 56 218 64 V208 H182 Z M182 76 H218 V84 H182 Z"/></g>
+</svg>
