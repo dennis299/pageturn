@@ -20,7 +20,7 @@ describe("fallbackChain", () => {
 
   it("goes free → Gemini → Kokoro from the free OpenRouter voice", () => {
     expect(ids(fallbackChain({ provider: "openrouter", model: "heygen/heygen-voice-1-turbo:free" }, { allowPaid: true }))).toEqual([
-      "gemini:gemini-3.8-flash-tts",
+      "gemini:gemini-3.8-flash-lite-tts",
       "openrouter:hexgrad/kokoro-82m",
     ]);
   });
@@ -33,7 +33,7 @@ describe("fallbackChain", () => {
 
   it("leaves out paid voices when paid isn't allowed (guests)", () => {
     expect(ids(fallbackChain({ provider: "openrouter", model: "heygen/heygen-voice-1-turbo:free" }, { allowPaid: false }))).toEqual([
-      "gemini:gemini-3.8-flash-tts",
+      "gemini:gemini-3.8-flash-lite-tts",
     ]);
   });
 

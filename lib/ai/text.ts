@@ -76,7 +76,7 @@ export async function generateText(o: Opts): Promise<Result> {
     }
   }
   const gKey = process.env.GEMINI_API_KEY;
-  const gModel = process.env.GEMINI_TEXT_MODEL || "gemini-3.8-flash";
+  const gModel = process.env.GEMINI_TEXT_MODEL || "gemini-3.5-flash-lite";
   if (gKey) {
     try {
       return { text: await viaGemini(gModel, o, gKey), provider: "gemini", model: gModel };

@@ -15,7 +15,7 @@ export function isRoutableError(e: unknown): boolean {
 export function routeVoices(): RouteVoice[] {
   return [
     { provider: "openrouter", model: "heygen/heygen-voice-1-turbo:free", voiceId: "nadine", voiceName: "Nadine", paid: false },
-    { provider: "gemini", model: process.env.GEMINI_TTS_MODEL || "gemini-3.8-flash-tts", voiceId: "Sulafat", voiceName: "Sulafat (Gemini)", paid: false },
+    { provider: "gemini", model: process.env.GEMINI_TTS_MODEL || "gemini-3.8-flash-lite-tts", voiceId: "Sulafat", voiceName: "Sulafat (Gemini)", paid: false },
     { provider: "openrouter", model: "hexgrad/kokoro-82m", voiceId: "af_heart", voiceName: "Heart (Kokoro)", paid: true },
   ];
 }

@@ -2,9 +2,10 @@ import { HttpError } from "@/lib/http";
 import { base64ToBytes, mp3DurationSec, pcmToMp3 } from "@/lib/audio/mp3";
 import type { TtsProvider, Voice } from "./types";
 
+// Flash-Lite first: its free-tier limits are known (3 requests/min, 10/day on the free AI Studio key).
 export const GEMINI_TTS_MODELS = [
+  { id: "gemini-3.8-flash-lite-tts", name: "3.8 Flash-Lite TTS · free key" },
   { id: "gemini-3.8-flash-tts", name: "3.8 Flash TTS" },
-  { id: "gemini-3.8-flash-lite-tts", name: "3.8 Flash-Lite TTS · cheaper" },
 ] as const;
 
 const VOICES: [string, string][] = [
@@ -32,7 +33,7 @@ export const gemini: TtsProvider = {
   },
 
   async synthesize({ text, voiceId, model }) {
-    const m = model || process.env.GEMINI_TTS_MODEL || "gemini-3.8-flash-tts";
+    const m = model || process.env.GEMINI_TTS_MODEL || "gemini-3.8-flash-lite-tts";
     const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent`, {
       method: "POST",
       headers: { "x-goog-api-key": key(), "Content-Type": "application/json" },
