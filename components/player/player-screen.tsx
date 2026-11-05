@@ -204,7 +204,7 @@ function Transport() {
     <>
       <Scrubber />
       <div className="mt-2 flex items-center justify-center gap-6 sm:gap-10">
-        <button type="button" onClick={() => store.seekBy(-15)} className="relative flex size-14 items-center justify-center rounded-full hover:bg-muted" aria-label="Back 15 seconds">
+        <button type="button" onClick={() => store.seekBy(-15)} className="press flex size-14 items-center justify-center rounded-full hover:bg-muted" aria-label="Back 15 seconds">
           <RotateCcw className="size-7" strokeWidth={1.6} />
           <span className="tabular absolute pt-0.5 font-mono text-[9px] font-medium">15</span>
         </button>
@@ -216,7 +216,7 @@ function Transport() {
         >
           {waiting ? <Loader2 className="size-8 animate-spin" /> : playing ? <Pause className="size-8 fill-current" /> : <Play className="size-8 translate-x-0.5 fill-current" />}
         </button>
-        <button type="button" onClick={() => store.seekBy(30)} className="relative flex size-14 items-center justify-center rounded-full hover:bg-muted" aria-label="Forward 30 seconds">
+        <button type="button" onClick={() => store.seekBy(30)} className="press flex size-14 items-center justify-center rounded-full hover:bg-muted" aria-label="Forward 30 seconds">
           <RotateCw className="size-7" strokeWidth={1.6} />
           <span className="tabular absolute pt-0.5 font-mono text-[9px] font-medium">30</span>
         </button>
@@ -228,7 +228,7 @@ function Transport() {
 function SecondaryControls({ readAlong, onReadAlong, open }: { readAlong: boolean; onReadAlong: () => void; open: (s: SheetName) => void }) {
   const rate = usePlayer((s) => s.rate);
   const sleep = usePlayer((s) => s.sleep);
-  const item = "flex min-h-14 flex-1 flex-col items-center justify-center gap-1 rounded-xl text-[11px] text-muted-foreground hover:bg-muted hover:text-foreground";
+  const item = "press flex min-h-14 flex-1 flex-col items-center justify-center gap-1 rounded-xl text-[11px] text-muted-foreground hover:bg-muted hover:text-foreground";
   return (
     <div className="mt-5 flex w-full gap-1">
       <button type="button" className={item} onClick={() => open("speed")} aria-label={`Speed ${rate}×`}>

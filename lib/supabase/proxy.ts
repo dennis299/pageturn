@@ -1,6 +1,7 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import { isAllowedEmail } from "@/lib/auth/allowlist";
+import { userFromClaims } from "@/lib/auth/claims";
 import { ALLOWED_EMAILS, SUPABASE_KEY, SUPABASE_URL } from "@/lib/env";
 
 /** Refreshes the Supabase session cookie and gates every page behind the allowlist. */
@@ -17,8 +18,9 @@ export async function updateSession(request: NextRequest) {
     },
   });
 
-  const { data } = await supabase.auth.getUser();
-  const allowed = isAllowedEmail(data.user?.email, ALLOWED_EMAILS);
+  // Verifies the token locally (ES256 signing key) and refreshes it when it has expired.
+  const { data } = await supabase.auth.getClaims();
+  const allowed = isAllowedEmail(userFromClaims(data?.claims)?.email, ALLOWED_EMAILS);
   if (!allowed) {
     if (request.nextUrl.pathname.startsWith("/api/")) {
       return NextResponse.json({ error: "Please log in." }, { status: 401 });

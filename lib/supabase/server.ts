@@ -1,8 +1,10 @@
 import "server-only";
+import { cache } from "react";
 import { createServerClient } from "@supabase/ssr";
-import type { SupabaseClient, User } from "@supabase/supabase-js";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { cookies } from "next/headers";
 import { isAllowedEmail } from "@/lib/auth/allowlist";
+import { userFromClaims, type AppUser } from "@/lib/auth/claims";
 import { ALLOWED_EMAILS, SUPABASE_KEY, SUPABASE_URL } from "@/lib/env";
 import { HttpError } from "@/lib/http";
 
@@ -23,11 +25,16 @@ export async function createServerSupabase(): Promise<SupabaseClient> {
   });
 }
 
-/** The signed-in, allowlisted user, or HttpError 401/403. */
-export async function requireUser(): Promise<{ supabase: SupabaseClient; user: User }> {
+/**
+ * The signed-in, allowlisted user, or HttpError 401/403. The login token is verified locally with
+ * the project's public signing key (no call to Supabase), and the result is shared by every
+ * component in the same request.
+ */
+export const requireUser = cache(async (): Promise<{ supabase: SupabaseClient; user: AppUser }> => {
   const supabase = await createServerSupabase();
-  const { data } = await supabase.auth.getUser();
-  if (!data.user) throw new HttpError(401, "Please log in.");
-  if (!isAllowedEmail(data.user.email, ALLOWED_EMAILS)) throw new HttpError(403, "This app is private.");
-  return { supabase, user: data.user };
-}
+  const { data } = await supabase.auth.getClaims();
+  const user = userFromClaims(data?.claims);
+  if (!user) throw new HttpError(401, "Please log in.");
+  if (!isAllowedEmail(user.email, ALLOWED_EMAILS)) throw new HttpError(403, "This app is private.");
+  return { supabase, user };
+});
