@@ -170,7 +170,7 @@ tests/              Unit tests + tests/fixtures/sample.pdf
 **You need:** Node 20.9+, a Supabase project, and at least one voice key. A free [OpenRouter](https://openrouter.ai/keys) key is enough to start.
 
 ```bash
-git clone <this repo> pageturn && cd pageturn
+git clone https://github.com/dennis299/pageturn.git && cd pageturn
 npm install                 # also copies the pdf.js worker into /public
 cp .env.example .env.local  # then fill it in (see below)
 ```
