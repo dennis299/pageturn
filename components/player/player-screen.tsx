@@ -90,7 +90,7 @@ export function PlayerScreen({ bookId }: { bookId: string }) {
           <MoreMenu onVoice={() => setSheet("voice")} />
         </header>
 
-        <NowPlaying readAlong={readAlong} />
+        <NowPlaying readAlong={readAlong} onVoice={() => setSheet("voice")} />
         <Transport />
         <SecondaryControls
           readAlong={readAlong}
@@ -127,7 +127,7 @@ function ChapterHeading() {
   return <h2 className="font-serif text-2xl italic">{ch?.title}</h2>;
 }
 
-function NowPlaying({ readAlong }: { readAlong: boolean }) {
+function NowPlaying({ readAlong, onVoice }: { readAlong: boolean; onVoice: () => void }) {
   const store = usePlayerStore()!;
   const book = usePlayer((s) => s.book)!;
   const idx = usePlayer((s) => s.pos.chunkIdx);
@@ -152,8 +152,18 @@ function NowPlaying({ readAlong }: { readAlong: boolean }) {
       <h1 className={cn("mt-6 font-serif text-2xl leading-tight text-balance sm:text-3xl", readAlong && "max-lg:mt-4 max-lg:text-xl")}>{book.title}</h1>
       <p className="mt-1 text-muted-foreground italic">{ch ? `${ch.title}` : ""}</p>
       <p className="tabular mt-1 font-mono text-[11px] text-muted-foreground">
-        Chapter {(ch?.idx ?? 0) + 1} of {chapters.length} · {Math.round(percent * 100)}% · {book.voice_name}
+        Chapter {(ch?.idx ?? 0) + 1} of {chapters.length} · {Math.round(percent * 100)}%
       </p>
+      <button
+        type="button"
+        onClick={onVoice}
+        className="press mt-3 inline-flex min-h-10 items-center gap-2 rounded-full border border-border px-4 text-sm hover:bg-accent/40"
+        aria-label={`Voice: ${book.voice_name}. Change voice`}
+      >
+        <Mic className="size-4 text-foil" aria-hidden />
+        {book.voice_name}
+        <span className="text-xs text-muted-foreground">Change</span>
+      </button>
     </div>
   );
 }
@@ -280,7 +290,7 @@ function MoreMenu({ onVoice }: { onVoice: () => void }) {
         }
       />
       <DropdownMenuContent align="end" className="w-72 p-1">
-        <DropdownMenuItem onClick={onVoice} className="h-11 gap-3">
+        <DropdownMenuItem onClick={() => setTimeout(onVoice, 150)} className="h-11 gap-3">
           <Mic aria-hidden /> Change voice
         </DropdownMenuItem>
         <div className="flex flex-col">

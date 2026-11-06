@@ -261,9 +261,20 @@ export function ApprovalSheet() {
         <Button variant="outline" className="h-12" onClick={() => store.declineApproval()}>
           Not now
         </Button>
-        <Button className="h-12" disabled={isEleven && credits !== null && cost.amount > credits} onClick={() => store.approve(chapter.idx)}>
-          <Check aria-hidden /> Make it
-        </Button>
+        {isEleven && credits !== null && cost.amount > credits ? (
+          <Button
+            className="h-12"
+            onClick={() =>
+              store.switchVoice({ provider: "openrouter", voiceId: "nadine", voiceName: "Nadine", model: "heygen/heygen-voice-1-turbo:free" })
+            }
+          >
+            Use the free voice
+          </Button>
+        ) : (
+          <Button className="h-12" onClick={() => store.approve(chapter.idx)}>
+            <Check aria-hidden /> Make it
+          </Button>
+        )}
       </div>
     </BottomSheet>
   );

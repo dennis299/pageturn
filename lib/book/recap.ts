@@ -1,3 +1,5 @@
+import { dayKey } from "@/lib/stats/streak";
+
 /** The text you've already heard, most recent last, capped at `maxChars` (keeps the newest part). */
 export function recapSource(chunks: { idx: number; text: string }[], posIdx: number, maxChars = 4000): string {
   const before = chunks.filter((c) => c.idx < posIdx).sort((a, b) => a.idx - b.idx);
@@ -11,8 +13,21 @@ export function recapSource(chunks: { idx: number; text: string }[], posIdx: num
   return out;
 }
 
-/** Offer a "previously on…" recap when you've been away for over a day and aren't at the start. */
-export function shouldOfferRecap(posIdx: number, lastListenedAt: string | null, now = Date.now()): boolean {
-  if (posIdx <= 0 || !lastListenedAt) return false;
-  return now - Date.parse(lastListenedAt) > 24 * 3600_000;
+/**
+ * Offer a "previously on…" recap on the first listen of each new calendar day (in your time zone),
+ * once something has been heard and today's recap hasn't been played yet.
+ */
+export function shouldOfferRecap(i: {
+  posIdx: number;
+  lastListenedAt: string | null;
+  now?: number;
+  timeZone?: string;
+  /** YYYY-MM-DD of the day a recap was last heard for this book. */
+  recapHeardOn?: string | null;
+}): boolean {
+  if (i.posIdx <= 0 || !i.lastListenedAt) return false;
+  const tz = i.timeZone ?? Intl.DateTimeFormat().resolvedOptions().timeZone;
+  const today = dayKey(new Date(i.now ?? Date.now()), tz);
+  if (i.recapHeardOn === today) return false;
+  return dayKey(new Date(i.lastListenedAt), tz) !== today;
 }

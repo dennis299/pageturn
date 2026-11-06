@@ -10,6 +10,7 @@ import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 import { ChangePassword } from "./change-password";
 import { GuestsSection } from "./guests";
+import { VoicesSection } from "./voices";
 
 const GOALS = [10, 15, 20, 30, 45, 60, 90];
 
@@ -99,6 +100,8 @@ export function SettingsForm({
 
   return (
     <div className="mt-6 flex flex-col gap-4">
+      <VoicesSection isOwner={isOwner} />
+
       <Section title="Daily goal" description="Minutes of listening a day. Meeting it keeps your streak going.">
         <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="Daily goal in minutes">
           {GOALS.map((g) => (

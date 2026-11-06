@@ -49,7 +49,9 @@ export function VoicePicker({
   bookChars: number;
   firstChapterChars: number;
 }) {
-  const [tab, setTab] = useState<ProviderId>(value?.provider ?? "openrouter");
+  // The tab you tapped; until then, the tab of the preselected voice (e.g. your default voice).
+  const [pickedTab, setTab] = useState<ProviderId | null>(null);
+  const tab: ProviderId = pickedTab ?? value?.provider ?? "openrouter";
   const [data, setData] = useState<Partial<Record<ProviderId, VoicesResponse>>>({});
   const [model, setModel] = useState<Partial<Record<ProviderId, string>>>({});
   const [credits, setCredits] = useState<Credits | null>(null);

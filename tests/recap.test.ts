@@ -24,13 +24,22 @@ describe("recapSource", () => {
 });
 
 describe("shouldOfferRecap", () => {
-  const now = Date.parse("2026-11-05T12:00:00Z");
-  it("offers after more than a day away, past the first part", () => {
-    expect(shouldOfferRecap(5, "2026-11-03T12:00:00Z", now)).toBe(true);
+  const tz = "Africa/Lagos";
+  const at = (iso: string) => Date.parse(iso);
+  it("offers on the first open of a new calendar day, even if it's under 24 hours", () => {
+    // Listened at 23:00 last night, opening at 08:00 this morning (Lagos time).
+    expect(shouldOfferRecap({ posIdx: 5, lastListenedAt: "2026-11-05T22:00:00Z", now: at("2026-11-06T07:00:00Z"), timeZone: tz })).toBe(true);
   });
-  it("doesn't offer within a day or at the start", () => {
-    expect(shouldOfferRecap(5, "2026-11-05T01:00:00Z", now)).toBe(false);
-    expect(shouldOfferRecap(0, "2026-11-01T01:00:00Z", now)).toBe(false);
-    expect(shouldOfferRecap(5, null, now)).toBe(false);
+  it("doesn't offer again on the same day", () => {
+    expect(shouldOfferRecap({ posIdx: 5, lastListenedAt: "2026-11-06T06:00:00Z", now: at("2026-11-06T12:00:00Z"), timeZone: tz })).toBe(false);
+  });
+  it("doesn't offer twice once today's recap was heard", () => {
+    expect(
+      shouldOfferRecap({ posIdx: 5, lastListenedAt: "2026-11-05T20:00:00Z", now: at("2026-11-06T09:00:00Z"), timeZone: tz, recapHeardOn: "2026-11-06" }),
+    ).toBe(false);
+  });
+  it("needs something already heard", () => {
+    expect(shouldOfferRecap({ posIdx: 0, lastListenedAt: "2026-11-01T10:00:00Z", now: at("2026-11-06T09:00:00Z"), timeZone: tz })).toBe(false);
+    expect(shouldOfferRecap({ posIdx: 5, lastListenedAt: null, now: at("2026-11-06T09:00:00Z"), timeZone: tz })).toBe(false);
   });
 });

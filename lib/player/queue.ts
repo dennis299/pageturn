@@ -38,8 +38,11 @@ export function needsApproval(
   chapterIdx: number,
   chapterCost: { unit: "credits" | "usd" | "free"; amount: number },
   remainingCredits?: number,
+  /** Your setting. Off = paid voices just play until their credit runs out, then auto-routing takes over. */
+  askBeforePaid = true,
 ): boolean {
   if (chapterCost.unit === "free" || chapterCost.amount === 0) return false;
+  if (!askBeforePaid) return false;
   if (book.approved_chapters.includes(chapterIdx)) return false;
   if (book.approved_chapters.length === 0) return true;
   if (!book.auto_continue) return true;

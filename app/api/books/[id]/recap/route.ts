@@ -6,6 +6,8 @@ import { HttpError, jsonError } from "@/lib/http";
 import { requireUser } from "@/lib/supabase/server";
 import { getProvider } from "@/lib/tts";
 import { elevenCredits } from "@/lib/tts/elevenlabs";
+import { fallbackChain, isRoutableError } from "@/lib/tts/route";
+import { getLimits, isFreeVoice } from "@/lib/auth/limits";
 import type { ProviderId } from "@/lib/db/types";
 
 export const maxDuration = 60;
@@ -44,7 +46,22 @@ export async function POST(request: Request, ctx: RouteContext<"/api/books/[id]/
       const c = await elevenCredits().catch(() => null);
       if (c && c.remaining < 2000) voice = { provider: "openrouter", voiceId: "nadine", model: "heygen/heygen-voice-1-turbo:free" };
     }
-    const { audio } = await getProvider(voice.provider).synthesize({ text: recapText, voiceId: voice.voiceId, model: voice.model });
+    const limits = await getLimits(supabase, user);
+    const tries = [voice, ...fallbackChain({ provider: voice.provider, model: voice.model }, { allowPaid: !limits.freeVoicesOnly })].filter(
+      (v) => !limits.freeVoicesOnly || isFreeVoice(v.provider, v.model),
+    );
+    let audio: Uint8Array | undefined;
+    let lastErr: unknown;
+    for (const v of tries) {
+      try {
+        audio = (await getProvider(v.provider).synthesize({ text: recapText, voiceId: v.voiceId, model: v.model })).audio;
+        break;
+      } catch (e) {
+        lastErr = e;
+        if (!isRoutableError(e)) break;
+      }
+    }
+    if (!audio) throw lastErr ?? new HttpError(502, "No voice could read the recap.");
     const audioPath = `${user.id}/${id}/recap.mp3`;
     const { error: upErr } = await supabase.storage.from(BUCKET).upload(audioPath, audio, { contentType: "audio/mpeg", upsert: true });
     if (upErr) throw upErr;

@@ -1,5 +1,5 @@
 "use client";
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { PDFDocumentProxy } from "pdfjs-dist";
 import { ArrowLeft, FileUp, Loader2, Minus, Plus, ScanText, Trash2 } from "lucide-react";
@@ -22,6 +22,7 @@ import { extractPdf } from "@/lib/pdf/extract";
 import { renderPageForOcr } from "@/lib/pdf/render";
 import type { CleanPage, ExtractedPdf } from "@/lib/pdf/types";
 import { createClient } from "@/lib/supabase/client";
+import { loadVoicePrefs } from "@/lib/voice-prefs";
 import { cn } from "@/lib/utils";
 import { PageThumb } from "./page-thumb";
 
@@ -69,6 +70,17 @@ export function ImportWizard() {
   const [voice, setVoice] = useState<VoiceChoice | null>(null);
   const sourceFile = useRef<File | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
+
+  // Start on your default voice (Settings → Voices), if you set one.
+  useEffect(() => {
+    const supabase = createClient();
+    supabase.auth.getUser().then(async ({ data }) => {
+      if (!data.user) return;
+      const prefs = await loadVoicePrefs(supabase, data.user.id);
+      const d = prefs.defaultVoice;
+      if (d) setVoice((v) => v ?? { provider: d.provider, voiceId: d.voiceId, voiceName: d.voiceName, model: d.model });
+    });
+  }, []);
 
   async function openFile(file: File) {
     if (file.type !== "application/pdf" && !file.name.toLowerCase().endsWith(".pdf")) {

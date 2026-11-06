@@ -1,6 +1,9 @@
 "use client";
 import { toast } from "sonner";
 import { BlobUrlCache } from "@/lib/audio/blob-cache";
+import { shouldOfferRecap } from "@/lib/book/recap";
+import { BUCKET } from "@/lib/env";
+import { dayKey } from "@/lib/stats/streak";
 import type { BookRow, ChunkRow, ProviderId } from "@/lib/db/types";
 import { createClient } from "@/lib/supabase/client";
 import { estimateCost, type Cost } from "@/lib/tts/cost";
@@ -28,6 +31,8 @@ export type PlayerState = {
   finished: boolean;
   offline: boolean;
   lastListenedAt: string | null;
+  /** Today's "previously on…" recap: prepared on a new day, spoken on the first Play. */
+  recap: { status: "none" | "preparing" | "ready" | "playing" | "done"; text: string | null };
 };
 
 export const RATES = [0.75, 0.9, 1, 1.1, 1.25, 1.5, 1.75, 2, 2.5];
@@ -75,6 +80,7 @@ export const initialPlayerState: PlayerState = {
   finished: false,
   offline: false,
   lastListenedAt: null,
+  recap: { status: "none", text: null },
 };
 
 /** Owns the single <audio> element and everything about listening to one book. */
@@ -87,6 +93,7 @@ export class PlayerStore {
   private loadToken = 0;
   private inflight = new Set<number>();
   private orPricing: { prompt: number; completion: number } | undefined;
+  private askBeforePaid = true;
   private texts = new Map<number, string>();
   private sessionId: string | null = null;
   private lastPauseAt = 0;
@@ -95,6 +102,8 @@ export class PlayerStore {
   private lastLocalSave = 0;
   private syncTimer: ReturnType<typeof setInterval> | undefined;
   private unlocked = false;
+  private mode: "book" | "recap" = "book";
+  private recapAudio: Promise<{ text: string; url: string } | null> | null = null;
 
   constructor() {
     this.audio = new Audio();
@@ -125,6 +134,8 @@ export class PlayerStore {
   }
   chapterCost(chapter: ChapterMeta): Cost {
     const b = this.state.book!;
+    // Gemini runs on the owner's free AI Studio key.
+    if (b.voice_provider === "gemini") return { unit: "free", amount: 0, label: "Free (AI Studio key)" };
     return estimateCost(chapter.charCount, b.voice_provider, b.voice_model ?? undefined, this.orPricing);
   }
 
@@ -177,7 +188,12 @@ export class PlayerStore {
     const last = chunks.length - 1;
     const pos = merged ? { chunkIdx: Math.min(Math.max(0, merged.chunkIdx), last), offsetSec: merged.offsetSec } : { chunkIdx: 0, offsetSec: 0 };
     const lastListenedAt = merged && Date.parse(merged.updatedAt) > 0 ? merged.updatedAt : null;
-    this.set({ book, chapters, chunks, pos, offline, finished: Boolean(book.finished_at), lastListenedAt });
+    this.set({ book, chapters, chunks, pos, offline, finished: Boolean(book.finished_at), lastListenedAt, recap: { status: "none", text: null } });
+    this.mode = "book";
+    this.recapAudio = null;
+    if (!offline && shouldOfferRecap({ posIdx: pos.chunkIdx, lastListenedAt, recapHeardOn: recapHeardOn(book.id) })) {
+      this.recapAudio = this.prepareRecap(book.id, pos.chunkIdx);
+    }
     this.updateMediaSession();
     void this.prepareCosts().then(() => this.pump());
     void this.load(pos.chunkIdx, pos.offsetSec, false);
@@ -192,6 +208,8 @@ export class PlayerStore {
       this.orPricing = v?.pricing ?? (b.voice_model?.endsWith(":free") ? { prompt: 0, completion: 0 } : undefined);
     }
     if (b.voice_provider === "elevenlabs") await this.refreshCredits();
+    const { data: s } = await createClient().from("ab_settings").select("ask_before_paid").maybeSingle();
+    this.askBeforePaid = s?.ask_before_paid ?? true;
   }
 
   async refreshCredits() {
@@ -246,9 +264,59 @@ export class PlayerStore {
     }
   }
 
+  /** Fetches (or reuses) the recap text and audio for this position, ready to play instantly. */
+  private async prepareRecap(bookId: string, posIdx: number): Promise<{ text: string; url: string } | null> {
+    this.set({ recap: { status: "preparing", text: null } });
+    try {
+      const res = await fetch(`/api/books/${bookId}/recap`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ posIdx }),
+      });
+      if (!res.ok) throw new Error("recap failed");
+      const { text, audioPath } = (await res.json()) as { text: string; audioPath: string };
+      const { data } = await createClient().storage.from(BUCKET).download(audioPath);
+      if (!data || this.state.book?.id !== bookId) throw new Error("no audio");
+      const url = URL.createObjectURL(data.type === "audio/mpeg" ? data : new Blob([data], { type: "audio/mpeg" }));
+      if (this.state.recap.status === "preparing") this.set({ recap: { status: "ready", text } });
+      return { text, url };
+    } catch {
+      // No recap today (AI busy, offline…): just carry on with the book.
+      if (this.state.book?.id === bookId) this.set({ recap: { status: "none", text: null } });
+      return null;
+    }
+  }
+
+  private async playRecap() {
+    const prepared = await this.recapAudio;
+    if (!prepared || this.state.recap.status === "done") return this.finishRecap(true);
+    this.mode = "recap";
+    this.loadedChunk = null;
+    this.audio.src = prepared.url;
+    this.audio.playbackRate = 1;
+    this.set({ recap: { status: "playing", text: prepared.text }, waiting: false });
+    await this.audio.play().catch(() => this.finishRecap(true));
+  }
+
+  /** Ends today's recap (heard or skipped) and, if asked, carries on where you stopped. */
+  finishRecap(continuePlaying: boolean) {
+    const b = this.state.book;
+    if (b) markRecapHeard(b.id);
+    const wasRecap = this.mode === "recap";
+    this.mode = "book";
+    this.recapAudio = null;
+    if (wasRecap) this.audio.pause();
+    this.set({ recap: { status: "done", text: this.state.recap.text } });
+    if (continuePlaying) void this.load(this.state.pos.chunkIdx, this.state.pos.offsetSec, true);
+  }
+
   /** Call from a tap. */
   play() {
     if (!this.state.book) return;
+    if (this.mode === "recap") {
+      this.audio.play().catch(() => {});
+      return;
+    }
     if (!this.unlocked && this.loadedChunk === null) {
       // Unlock the element inside the tap so later async play() calls are allowed on iOS.
       this.audio.src = silentWav();
@@ -257,6 +325,10 @@ export class PlayerStore {
     this.unlocked = true;
     this.set({ error: null });
     if (Date.now() - this.lastPauseAt > SESSION_GAP_MS || !this.sessionId) this.sessionId = crypto.randomUUID();
+    if (this.recapAudio && this.state.recap.status !== "done") {
+      this.set({ waiting: true });
+      return void this.playRecap();
+    }
     if (this.state.finished && this.state.pos.chunkIdx >= this.state.chunks.length - 1) {
       this.set({ finished: false });
       return void this.load(0, 0, true);
@@ -399,7 +471,7 @@ export class PlayerStore {
       const ch = this.chapterOf(idx);
       if (!ch) continue;
       const cost = this.chapterCost(ch);
-      if (needsApproval(this.state.book!, ch.idx, cost, this.state.credits ?? undefined)) {
+      if (needsApproval(this.state.book!, ch.idx, cost, this.state.credits ?? undefined, this.askBeforePaid)) {
         if (this.state.approvalFor === null) this.set({ approvalFor: ch.idx });
         break;
       }
@@ -564,12 +636,14 @@ export class PlayerStore {
   private wireAudio() {
     const a = this.audio;
     a.addEventListener("play", () => {
+      if (this.mode === "recap") return this.set({ playing: true, waiting: false });
       if (this.loadedChunk === null) return; // the silent unlock clip
       this.lastTick = performance.now();
       this.set({ playing: true, waiting: false });
       this.startSync();
     });
     a.addEventListener("pause", () => {
+      if (this.mode === "recap") return this.set({ playing: false });
       if (this.loadedChunk === null) return;
       this.set({ playing: false });
       this.stopSync();
@@ -589,6 +663,7 @@ export class PlayerStore {
       }
     });
     a.addEventListener("ended", () => {
+      if (this.mode === "recap") return this.finishRecap(true);
       if (this.loadedChunk === null) return;
       const idx = this.loadedChunk;
       const next = idx + 1;
@@ -687,4 +762,22 @@ export async function flushOfflineProgress() {
   for (const body of q) {
     await fetch("/api/progress", { method: "POST", body, headers: { "Content-Type": "application/json" } }).catch(() => queueOfflineProgress(body));
   }
+}
+
+// ---- daily recap bookkeeping (per device) --------------------------------
+const recapKey = (bookId: string) => `ab-recap:${bookId}`;
+function today(): string {
+  return dayKey(new Date(), Intl.DateTimeFormat().resolvedOptions().timeZone);
+}
+function recapHeardOn(bookId: string): string | null {
+  try {
+    return localStorage.getItem(recapKey(bookId));
+  } catch {
+    return null;
+  }
+}
+function markRecapHeard(bookId: string) {
+  try {
+    localStorage.setItem(recapKey(bookId), today());
+  } catch {}
 }

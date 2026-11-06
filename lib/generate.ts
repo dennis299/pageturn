@@ -4,7 +4,7 @@ import { BUCKET } from "@/lib/env";
 import type { ChunkRow, ProviderId } from "@/lib/db/types";
 import { getProvider as defaultGetProvider } from "@/lib/tts";
 import { checkProviderBudget } from "@/lib/tts/budget";
-import { fallbackChain, isRoutableError } from "@/lib/tts/route";
+import { fallbackChain, isRoutableError, type RouteKey } from "@/lib/tts/route";
 import { sentenceTimings } from "@/lib/tts/timings";
 import type { TtsProvider, TtsResult } from "@/lib/tts/types";
 
@@ -14,6 +14,10 @@ type Deps = {
   allowPaid?: boolean;
   /** Throws a routable error when a provider's own rate limit (e.g. the free Gemini key) is used up. */
   checkBudget?: (supabase: SupabaseClient, provider: ProviderId) => Promise<void>;
+  /** Your auto-route order (Settings → Voices); default is free → Gemini → Kokoro. */
+  order?: RouteKey[] | null;
+  /** The ElevenLabs voice to use if your order includes ElevenLabs. */
+  elevenVoice?: { voiceId: string; voiceName: string; model?: string | null };
 };
 
 type Voice = { provider: ProviderId; voiceId: string; voiceName?: string; model?: string };
@@ -65,7 +69,7 @@ export async function generateChunk(
       model: book.voice_model ?? undefined,
     };
     // Guests (allowPaid = false) never use a paid voice, even if their book was switched to one.
-    const candidates: Voice[] = [original, ...fallbackChain({ provider: original.provider, model: original.model }, { allowPaid })].filter(
+    const candidates: Voice[] = [original, ...fallbackChain({ provider: original.provider, model: original.model }, { allowPaid, order: deps.order, elevenVoice: deps.elevenVoice })].filter(
       (v) => allowPaid || isFreeVoice(v.provider, v.model),
     );
 

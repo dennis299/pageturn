@@ -67,3 +67,13 @@ describe("needsApproval", () => {
     expect(needsApproval({ ...g, approved_chapters: [0] }, 1, { unit: "usd", amount: 0.2 })).toBe(false);
   });
 });
+
+describe("needsApproval when you turned off 'ask before paid chapters'", () => {
+  const book = { voice_provider: "elevenlabs" as const, approved_chapters: [] as number[], auto_continue: true };
+  it("never asks, even for the first chapter or a big one; running out of credit is handled by auto-routing", () => {
+    expect(needsApproval(book, 0, { unit: "credits", amount: 50_000 }, 14_000, false)).toBe(false);
+  });
+  it("still asks when the switch is on (the default)", () => {
+    expect(needsApproval(book, 0, { unit: "credits", amount: 500 }, 14_000)).toBe(true);
+  });
+});
