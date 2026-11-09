@@ -16,7 +16,7 @@ export default async function ShelfPage() {
   const current = books.find((b) => b.lastListened && !b.finished);
 
   return (
-    <div className="pt-safe mx-auto w-full max-w-5xl px-5 py-6 sm:px-8 md:py-10">
+    <div className="mx-auto w-full max-w-5xl px-5 py-6 sm:px-8 md:py-10">
       <header className="flex items-center justify-between gap-4">
         <Wordmark className="md:hidden" />
         <h1 className="hidden font-serif text-4xl md:block">Your shelf</h1>
@@ -44,7 +44,7 @@ export default async function ShelfPage() {
               </h2>
               <Link
                 href={`/book/${current.id}`}
-                className="press group mt-3 flex items-center gap-5 rounded-2xl border border-border bg-card p-4 transition-colors hover:bg-accent/40 sm:p-5"
+                className="press-card group mt-3 flex items-center gap-5 rounded-2xl border border-border bg-card p-4 transition-colors hover:bg-accent/40 sm:p-5"
               >
                 <BookCover id={current.id} title={current.title} progress={current.percent} size="sm" className="w-20 sm:w-24" />
                 <div className="min-w-0 flex-1">
@@ -69,7 +69,7 @@ export default async function ShelfPage() {
             <ul className="mt-4 grid grid-cols-2 gap-x-5 gap-y-8 sm:grid-cols-3 lg:grid-cols-4">
               {books.map((b) => (
                 <li key={b.id}>
-                  <Link href={`/book/${b.id}`} className="press group block rounded-lg focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-ring">
+                  <Link href={`/book/${b.id}`} className="press-card group block rounded-lg focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-ring">
                     <BookCover id={b.id} title={b.title} author={b.author} progress={b.percent} className="transition-transform duration-200 group-hover:-translate-y-1" />
                     <p className="mt-3 line-clamp-2 text-sm leading-snug font-medium">{b.title}</p>
                     <p className="tabular mt-1 font-mono text-[11px] text-muted-foreground">

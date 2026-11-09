@@ -30,7 +30,7 @@ function humanError(e: unknown): string {
 
 /**
  * Generates one chunk's audio exactly once: claims it atomically, synthesizes it with the book's
- * voice, uploads `{uid}/{bookId}/{idx}.mp3` and marks it ready.
+ * voice, uploads `{uid}/{bookId}/{idx}-{take}.mp3` and marks it ready.
  *
  * If the voice hits a rate limit, a daily cap or runs out of credit, it routes to the next voice
  * (free first, then cheap when allowed, never ElevenLabs) and switches the rest of the book to that
@@ -89,20 +89,37 @@ export async function generateChunk(
     }
     if (!result) throw lastError ?? new Error("No voice is available right now.");
 
-    const switched = used !== original;
-    if (switched) {
-      await supabase
+    // You may have picked another voice while this part was being made. Then this audio is in the
+    // wrong voice: drop it and leave the part for the new voice, instead of saving it (or, worse,
+    // auto-routing the whole book away from the voice you just picked).
+    const { data: nowBook } = await supabase
+      .from("ab_books")
+      .select("voice_provider,voice_id,voice_model")
+      .eq("id", claimed.book_id)
+      .single();
+    if (nowBook && !sameVoice(nowBook, original)) return { claimed: true, chunk: await release(supabase, claimed) };
+
+    let switched = false;
+    if (used !== original) {
+      // Only if the book still has the voice that hit its limit, so a voice you picked meanwhile wins.
+      const { data: moved } = await supabase
         .from("ab_books")
         .update({ voice_provider: used.provider, voice_id: used.voiceId, voice_name: used.voiceName ?? used.voiceId, voice_model: used.model ?? null })
-        .eq("id", claimed.book_id);
+        .eq("id", claimed.book_id)
+        .eq("voice_provider", original.provider)
+        .eq("voice_id", original.voiceId)
+        .select("id");
+      switched = Boolean(moved?.length);
+      if (!switched) return { claimed: true, chunk: await release(supabase, claimed) };
     }
 
-    const path = `${claimed.user_id}/${claimed.book_id}/${claimed.idx}.mp3`;
-    const { error: upErr } = await supabase.storage
-      .from(BUCKET)
-      .upload(path, result.audio, { contentType: "audio/mpeg", upsert: true, cacheControl: "31536000" });
+    // A fresh file name per take, so a part that's remade (new voice) is never served from a stale cache.
+    const path = `${claimed.user_id}/${claimed.book_id}/${claimed.idx}-${Date.now().toString(36)}.mp3`;
+    const bucket = supabase.storage.from(BUCKET);
+    const { error: upErr } = await bucket.upload(path, result.audio, { contentType: "audio/mpeg", upsert: true, cacheControl: "31536000" });
     if (upErr) throw upErr;
 
+    // Only while this claim is still the live one: if the player reset the part meanwhile, don't resurrect it.
     const { data, error } = await supabase
       .from("ab_chunks")
       .update({
@@ -115,17 +132,51 @@ export async function generateChunk(
         updated_at: new Date().toISOString(),
       })
       .eq("id", chunkId)
+      .eq("status", "generating")
+      .eq("claimed_at", claimed.claimed_at)
       .select("*")
-      .single();
+      .maybeSingle();
     if (error) throw error;
+    if (!data) {
+      await bucket.remove([path]).catch(() => {});
+      return { claimed: true, chunk: await currentRow(supabase, chunkId, claimed) };
+    }
+    if (claimed.audio_path && claimed.audio_path !== path) await bucket.remove([claimed.audio_path]).catch(() => {});
     return { claimed: true, chunk: data as ChunkRow, switchedTo: switched ? (used.voiceName ?? used.voiceId) : undefined };
   } catch (e) {
     const { data } = await supabase
       .from("ab_chunks")
       .update({ status: "failed", error: humanError(e), updated_at: new Date().toISOString() })
       .eq("id", chunkId)
+      .eq("status", "generating")
+      .eq("claimed_at", claimed.claimed_at)
       .select("*")
-      .single();
-    return { claimed: true, chunk: (data as ChunkRow) ?? { ...claimed, status: "failed", error: humanError(e) } };
+      .maybeSingle();
+    if (data) return { claimed: true, chunk: data as ChunkRow };
+    // The part was reset meanwhile (you changed the voice): this failure belongs to the old voice.
+    return { claimed: true, chunk: await currentRow(supabase, chunkId, { ...claimed, status: "failed", error: humanError(e) }) };
   }
+}
+
+type BookVoice = { voice_provider: string; voice_id: string; voice_model: string | null };
+function sameVoice(b: BookVoice, v: Voice): boolean {
+  return b.voice_provider === v.provider && b.voice_id === v.voiceId && (b.voice_model ?? null) === (v.model ?? null);
+}
+
+/** Hands an unfinished claim back (status `pending`), so the part is made again with the book's current voice. */
+async function release(supabase: SupabaseClient, claimed: ChunkRow): Promise<ChunkRow> {
+  const { data } = await supabase
+    .from("ab_chunks")
+    .update({ status: "pending", claimed_at: null, error: null, updated_at: new Date().toISOString() })
+    .eq("id", claimed.id)
+    .eq("status", "generating")
+    .eq("claimed_at", claimed.claimed_at)
+    .select("*")
+    .maybeSingle();
+  return (data as ChunkRow | null) ?? currentRow(supabase, claimed.id, { ...claimed, status: "pending" });
+}
+
+async function currentRow(supabase: SupabaseClient, chunkId: string, fallback: ChunkRow): Promise<ChunkRow> {
+  const { data } = await supabase.from("ab_chunks").select("*").eq("id", chunkId).maybeSingle();
+  return (data as ChunkRow | null) ?? fallback;
 }

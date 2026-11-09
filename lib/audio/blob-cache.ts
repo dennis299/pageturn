@@ -42,6 +42,14 @@ export class BlobUrlCache {
     }
   }
 
+  /** Forgets these chunks' audio (e.g. they're being remade in another voice). */
+  drop(chunkIds: string[]) {
+    for (const id of chunkIds) {
+      this.urls.get(id)?.then((u) => setTimeout(() => URL.revokeObjectURL(u), 30_000)).catch(() => {});
+      this.urls.delete(id);
+    }
+  }
+
   clear() {
     for (const p of this.urls.values()) p.then((u) => URL.revokeObjectURL(u)).catch(() => {});
     this.urls.clear();

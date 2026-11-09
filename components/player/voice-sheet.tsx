@@ -7,7 +7,7 @@ import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "
 import { VoicePicker, type VoiceChoice } from "@/components/voice/voice-picker";
 import { usePlayer, usePlayerStore } from "./player-provider";
 
-/** Change the voice for the parts of the book that don't have audio yet. */
+/** Change the voice from the next part of the book on. */
 export function VoiceSheet({ open, onOpenChange }: { open: boolean; onOpenChange: (o: boolean) => void }) {
   const store = usePlayerStore();
   const book = usePlayer((s) => s.book);
@@ -17,7 +17,8 @@ export function VoiceSheet({ open, onOpenChange }: { open: boolean; onOpenChange
   const [choice, setChoice] = useState<VoiceChoice | null>(null);
   const [saving, setSaving] = useState(false);
   if (!book || !store) return null;
-  const remaining = chunks.filter((c) => c.status !== "ready").reduce((s, c) => s + c.char_count, 0);
+  // Everything after the part you're on is (re)made in the new voice.
+  const remaining = chunks.filter((c) => c.idx > pos || (c.idx === pos && c.status !== "ready")).reduce((s, c) => s + c.char_count, 0);
   const chapter = store.chapterOf(pos) ?? chapters[0];
 
   async function save() {
@@ -40,7 +41,7 @@ export function VoiceSheet({ open, onOpenChange }: { open: boolean; onOpenChange
         <SheetHeader>
           <SheetTitle className="font-serif text-2xl font-normal">Change voice</SheetTitle>
           <SheetDescription>
-            Now reading with {book.voice_name}. Parts that already have audio keep it; everything else uses the new voice.
+            Now reading with {book.voice_name}. The short part playing now (about a minute) finishes, then the rest of the book switches to the new voice.
           </SheetDescription>
         </SheetHeader>
         <div className="flex flex-col gap-4 overflow-y-auto px-4 pb-4">

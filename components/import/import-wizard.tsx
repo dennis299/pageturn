@@ -207,7 +207,7 @@ export function ImportWizard() {
   const back = () => setStep(STEPS[Math.max(0, stepIdx - 1)].id);
 
   return (
-    <div className="pt-safe mx-auto w-full max-w-3xl px-5 py-6 sm:px-8 md:py-10">
+    <div className="mx-auto w-full max-w-3xl px-5 py-6 sm:px-8 md:py-10">
       <header className="flex items-center gap-3">
         {stepIdx > 0 && (
           <Button variant="ghost" size="icon-lg" onClick={back} aria-label="Back" disabled={Boolean(busy)}>

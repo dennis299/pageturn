@@ -168,7 +168,15 @@ export function VoicePicker({
           <span className="font-medium">Model</span>
           <select
             value={activeModel ?? ""}
-            onChange={(e) => setModel((m) => ({ ...m, [tab]: e.target.value }))}
+            onChange={(e) => {
+              const next = e.target.value;
+              setModel((m) => ({ ...m, [tab]: next }));
+              // Keep your picked voice, now with the new model, so "Use …" saves what you see selected.
+              if (value?.provider === tab) {
+                const same = (current?.voices ?? []).find((v) => v.id === value.voiceId && (tab !== "openrouter" || v.model === next));
+                if (same) onChange({ ...value, model: next, pricing: same.pricing });
+              }
+            }}
             className="h-12 rounded-lg border border-input bg-card px-3 text-base"
           >
             {tab === "openrouter"

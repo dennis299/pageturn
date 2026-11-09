@@ -77,19 +77,19 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   // The tab you just tapped, remembered against the page you tapped it on, so it shows as active at once.
   const [tapped, setTapped] = useState<{ href: string; from: string } | null>(null);
   const activeHref = tapped && tapped.from === path ? tapped.href : NAV.find((n) => isActive(path, n.href))?.href;
-  // iPhone (iOS 26): the floating tab bar slims down to icons while you scroll down, and grows back on scroll up.
-  const [compact, setCompact] = useState(false);
-  const lastY = useRef(0);
+  // The tab bar (and the mini player above it) stays put while you scroll, like a native app. Its
+  // real height is measured, so the end of every page always scrolls clear of it.
+  const chrome = useRef<HTMLDivElement>(null);
+  const [chromeH, setChromeH] = useState<number | null>(null);
   useEffect(() => {
-    const onScroll = () => {
-      const y = window.scrollY;
-      if (Math.abs(y - lastY.current) < 8) return;
-      setCompact(y > lastY.current && y > 80);
-      lastY.current = y;
-    };
-    window.addEventListener("scroll", onScroll, { passive: true });
-    return () => window.removeEventListener("scroll", onScroll);
-  }, []);
+    const el = chrome.current;
+    if (!el) return;
+    const measure = () => setChromeH(Math.ceil(el.getBoundingClientRect().height));
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    measure();
+    return () => ro.disconnect();
+  }, [inPlayer]);
   const items = (variant: "rail" | "bar") =>
     NAV.map((n) => (
       <NavItem
@@ -104,6 +104,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex min-h-dvh">
       <TimezoneSync />
+      {/* Behind the iPhone status bar: pages scroll under a frosted strip, not under the clock. */}
+      <div className="status-scrim app-chrome" aria-hidden />
       <aside className="app-chrome sticky top-0 hidden h-dvh w-60 shrink-0 flex-col border-r border-sidebar-border bg-sidebar px-4 py-6 md:flex">
         <Link href="/" className="px-3">
           <Wordmark />
@@ -117,9 +119,14 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <main className={cn("flex-1", !inPlayer && "pb-36 md:pb-10")}>{children}</main>
+        <main
+          className={cn("app-main flex-1", !inPlayer && "with-bottom-chrome")}
+          style={chromeH ? ({ "--bottom-chrome": `${chromeH}px` } as React.CSSProperties) : undefined}
+        >
+          {children}
+        </main>
         {!inPlayer && (
-          <div className="app-chrome bottom-chrome fixed inset-x-0 bottom-0 z-40 md:hidden" data-compact={compact ? "1" : undefined}>
+          <div ref={chrome} className="app-chrome bottom-chrome fixed inset-x-0 bottom-0 z-40 md:hidden">
             <MiniPlayer variant="bar" />
             <nav className="nav-bar pb-safe grid grid-cols-4 border-t border-border bg-background/92 backdrop-blur-md" aria-label="Main">
               {items("bar")}

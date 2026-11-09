@@ -64,7 +64,7 @@ export function PlayerScreen({ bookId }: { bookId: string }) {
 
   if (!store || !book || book.id !== bookId) {
     return (
-      <div className="flex min-h-dvh items-center justify-center p-8 text-muted-foreground" role="status">
+      <div className="min-h-app flex items-center justify-center p-8 text-muted-foreground" role="status">
         {error ? (
           <p className="max-w-sm text-center">
             {error}{" "}
@@ -80,7 +80,7 @@ export function PlayerScreen({ bookId }: { bookId: string }) {
   }
 
   return (
-    <div className="pt-safe mx-auto flex min-h-dvh w-full max-w-6xl flex-col px-5 pb-8 sm:px-8 lg:grid lg:grid-cols-[minmax(0,26rem)_minmax(0,1fr)] lg:gap-12 lg:py-10">
+    <div className="min-h-app mx-auto flex w-full max-w-6xl flex-col px-5 pb-8 sm:px-8 lg:grid lg:grid-cols-[minmax(0,26rem)_minmax(0,1fr)] lg:gap-12 lg:py-10">
       <div className="flex flex-col">
         <header className="flex h-14 items-center justify-between">
           <Link href="/" className="-ml-2 flex size-11 items-center justify-center rounded-full hover:bg-muted" aria-label="Back to shelf">

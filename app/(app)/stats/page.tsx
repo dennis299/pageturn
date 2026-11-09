@@ -24,7 +24,7 @@ export default async function StatsPage() {
   const reading = s.books.filter((b) => !b.finished && b.percent > 0);
 
   return (
-    <div className="pt-safe mx-auto w-full max-w-5xl px-5 py-6 sm:px-8 md:py-10">
+    <div className="mx-auto w-full max-w-5xl px-5 py-6 sm:px-8 md:py-10">
       <h1 className="font-serif text-3xl sm:text-4xl">Your listening</h1>
 
       <section className="mt-6 flex items-center gap-4 rounded-2xl border border-border bg-card p-4">

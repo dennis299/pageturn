@@ -7,7 +7,7 @@ import { dayKey } from "@/lib/stats/streak";
 import type { BookRow, ChunkRow, ProviderId } from "@/lib/db/types";
 import { createClient } from "@/lib/supabase/client";
 import { estimateCost, type Cost } from "@/lib/tts/cost";
-import { loadOfflineBook } from "@/lib/offline/books";
+import { forgetOfflineAudio, loadOfflineBook } from "@/lib/offline/books";
 import { mergeProgress, readLocalProgress, writeLocalProgress, type Progress } from "./progress";
 import { chunksToGenerate, needsApproval } from "./queue";
 import { chapterTimeline, fromChapterTime, toChapterTime, type Timeline } from "./timeline";
@@ -485,11 +485,18 @@ export class PlayerStore {
     if (!chunk) return;
     this.inflight.add(idx);
     this.patchChunk(idx, { status: "generating" });
+    const voiceAtStart = voiceKey(this.state.book);
     try {
       const res = await fetch(`/api/chunks/${chunk.id}/generate`, { method: "POST" });
       const j = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(j.error ?? `Generation failed (${res.status})`);
-      const row = j.chunk as ChunkRow;
+      let row = j.chunk as ChunkRow;
+      if (voiceKey(this.state.book) !== voiceAtStart) {
+        // You changed the voice while this part was being made, and switchVoice already sent it back
+        // to be remade: whatever came back is in the old voice, so drop it and make it again.
+        row = { ...row, status: "pending", audio_path: null, duration_sec: null, timings: null, error: null };
+        delete j.switchedTo;
+      }
       this.patchChunk(idx, {
         status: row.status,
         audio_path: row.audio_path,
@@ -577,20 +584,47 @@ export class PlayerStore {
     void this.generate(idx);
   }
 
-  /** Switches the voice for parts that don't have audio yet, and clears failures. */
+  /**
+   * Switches the voice from the next part on. The part playing now finishes in the old voice; every
+   * later part that was already made ahead of time (or is being made) is remade in the new one, so
+   * the voice really changes instead of flipping back for the parts made in advance.
+   */
   async switchVoice(v: { provider: ProviderId; voiceId: string; voiceName: string; model?: string }) {
     const b = this.state.book!;
     const supabase = createClient();
     const patch = { voice_provider: v.provider, voice_id: v.voiceId, voice_name: v.voiceName, voice_model: v.model ?? null, approved_chapters: [] };
     const { error } = await supabase.from("ab_books").update(patch).eq("id", b.id);
     if (error) throw error;
-    await supabase.from("ab_chunks").update({ status: "pending", error: null }).eq("book_id", b.id).eq("status", "failed");
+    const from = this.state.pos.chunkIdx;
+    const current = this.state.chunks[from];
+    // The part you're on is remade too if it has no audio yet; otherwise it plays out in the old voice.
+    const firstRedo = current && current.status !== "ready" ? from : from + 1;
+    const redo = (c: ChunkMeta) => c.idx >= firstRedo && c.status !== "pending";
+    const reset = this.state.chunks.filter(redo);
+    if (reset.length) {
+      const { error: e2 } = await supabase
+        .from("ab_chunks")
+        .update({ status: "pending", error: null, claimed_at: null })
+        .eq("book_id", b.id)
+        .gte("idx", firstRedo)
+        .neq("status", "pending");
+      if (e2) throw e2;
+    }
+    // Failed parts before your position get another go with the new voice too.
+    await supabase.from("ab_chunks").update({ status: "pending", error: null }).eq("book_id", b.id).lt("idx", firstRedo).eq("status", "failed");
+    // Forget old-voice audio already fetched or downloaded for the parts that will be remade.
+    this.blobs.drop(reset.map((c) => c.id));
+    void forgetOfflineAudio(b.id, reset.map((c) => c.id)).catch(() => {});
     this.set({
       book: { ...b, ...patch },
-      chunks: this.state.chunks.map((c) => (c.status === "failed" ? { ...c, status: "pending", error: null } : c)),
+      chunks: this.state.chunks.map((c) =>
+        redo(c) || (c.idx < firstRedo && c.status === "failed") ? { ...c, status: "pending", error: null } : c,
+      ),
       error: null,
       approvalFor: null,
     });
+    // The current part may have been waiting on the old voice; load it again once the new voice has made it.
+    if (firstRedo === from) this.loadedChunk = null;
     this.orPricing = undefined;
     await this.prepareCosts();
     this.pump();
@@ -635,6 +669,12 @@ export class PlayerStore {
   // ---- audio + page events ------------------------------------------------
   private wireAudio() {
     const a = this.audio;
+    // Tell the lock screen / Control Center whether Pageturn is playing, so it shows the right button.
+    const mediaState = (s: MediaSessionPlaybackState) => {
+      if ("mediaSession" in navigator) navigator.mediaSession.playbackState = s;
+    };
+    a.addEventListener("playing", () => mediaState("playing"));
+    a.addEventListener("pause", () => mediaState("paused"));
     a.addEventListener("play", () => {
       if (this.mode === "recap") return this.set({ playing: true, waiting: false });
       if (this.loadedChunk === null) return; // the silent unlock clip
@@ -723,13 +763,18 @@ export class PlayerStore {
   private updateMediaSession() {
     if (!("mediaSession" in navigator) || !this.state.book) return;
     const ch = this.chapterOf(this.state.pos.chunkIdx);
+    const title = ch?.title ?? this.state.book.title;
+    const cur = navigator.mediaSession.metadata;
+    // Only when something changed: replacing the metadata on every part makes the iPhone lock screen redraw and flicker.
+    if (cur && cur.title === title && cur.artist === this.state.book.title) return;
+    const icon = (p: string) => new URL(p, location.origin).href;
     navigator.mediaSession.metadata = new MediaMetadata({
-      title: ch?.title ?? this.state.book.title,
+      title,
       artist: this.state.book.title,
       album: this.state.book.author ?? "Pageturn",
       artwork: [
-        { src: "/icons/icon-192.png", sizes: "192x192", type: "image/png" },
-        { src: "/icons/icon-512.png", sizes: "512x512", type: "image/png" },
+        { src: icon("/icons/icon-192.png"), sizes: "192x192", type: "image/png" },
+        { src: icon("/icons/icon-512.png"), sizes: "512x512", type: "image/png" },
       ],
     });
   }
@@ -742,6 +787,10 @@ export class PlayerStore {
       navigator.mediaSession.setPositionState({ duration: total, position: Math.min(t, total), playbackRate: this.state.rate });
     } catch {}
   }
+}
+
+function voiceKey(b: BookRow | null): string {
+  return b ? `${b.voice_provider}|${b.voice_id}|${b.voice_model ?? ""}` : "";
 }
 
 // ---- offline progress queue ----------------------------------------------

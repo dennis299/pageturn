@@ -87,6 +87,26 @@ export async function downloadChapters(
   return allChunks;
 }
 
+/**
+ * Drops downloaded audio for parts that are being remade (new voice), and marks their chapters as
+ * no longer saved, so the download button offers to save them again in the new voice.
+ */
+export async function forgetOfflineAudio(bookId: string, chunkIds: string[]): Promise<void> {
+  if (!("caches" in window) || !chunkIds.length) return;
+  const snap = await loadOfflineBook(bookId);
+  if (!snap) return;
+  const cache = await caches.open(AUDIO_CACHE);
+  const gone = new Set(chunkIds);
+  await Promise.all(chunkIds.map((id) => cache.delete(offlineAudioUrl(id))));
+  const stale = new Set(snap.chunks.filter((c) => gone.has(c.id)).map((c) => c.chapter_idx));
+  const next: OfflineSnapshot = {
+    ...snap,
+    chunks: snap.chunks.map((c) => (gone.has(c.id) ? { ...c, status: "pending", audio_path: null } : c)),
+    chapterIdxs: snap.chapterIdxs.filter((i) => !stale.has(i)),
+  };
+  await cache.put(snapUrl(bookId), new Response(JSON.stringify(next), { headers: { "Content-Type": "application/json" } }));
+}
+
 /** Removes a book's downloaded audio and snapshot. */
 export async function removeDownload(bookId: string): Promise<void> {
   const snap = await loadOfflineBook(bookId);

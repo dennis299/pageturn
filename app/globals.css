@@ -154,12 +154,17 @@
     -webkit-tap-highlight-color: transparent;
     /* No double-tap-to-zoom delay: taps fire immediately, like a native app. */
     touch-action: manipulation;
+    /* No rubber-band bounce or pull-to-refresh of the whole page. It has to sit on <html>: the
+       viewport's overscroll comes from the root element, so on <body> it did nothing. */
+    overscroll-behavior: none;
+    /* No font resizing when the phone turns sideways. */
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
   }
   body {
-    /* No rubber-band bounce of the whole page. */
-    overscroll-behavior-y: none;
-  }
-  body {
+    overscroll-behavior: none;
+    /* Nothing may push the page sideways: a page that pans left and right doesn't feel like an app. */
+    overflow-x: clip;
   }
   .tabular {
     font-variant-numeric: tabular-nums;
@@ -169,6 +174,26 @@
 /* Safe areas for the iPhone home indicator and notch */
 .pb-safe { padding-bottom: max(env(safe-area-inset-bottom), 0.5rem); }
 .pt-safe { padding-top: env(safe-area-inset-top); }
+
+/* App pages: the shell clears the status bar once, so each page keeps its own top spacing
+   (a page-level .pt-safe used to replace it, leaving no gap on desktop and none under the clock). */
+.app-main { padding-top: env(safe-area-inset-top); padding-bottom: env(safe-area-inset-bottom); }
+/* Pages with the bottom tab bar: scroll clear of its measured height (mini player included). */
+.app-main.with-bottom-chrome { padding-bottom: calc(var(--bottom-chrome, 9rem) + 1rem); }
+@media (min-width: 768px) {
+  .app-main.with-bottom-chrome { padding-bottom: 2.5rem; }
+}
+/* A full screen inside the shell, without the status-bar inset making it scroll. */
+.min-h-app { min-height: calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom)); }
+
+/* Frosted strip behind the iPhone status bar (zero height everywhere else). */
+.status-scrim {
+  position: fixed; inset: 0 0 auto 0; z-index: 45; height: env(safe-area-inset-top);
+  background: color-mix(in oklab, var(--background) 82%, transparent);
+  -webkit-backdrop-filter: blur(18px) saturate(1.6);
+  backdrop-filter: blur(18px) saturate(1.6);
+  pointer-events: none;
+}
 
 /* Book cloth: a fine woven texture over a solid cloth colour */
 .cloth {
@@ -234,6 +259,10 @@
 /* Press feedback: things shrink slightly under your finger. */
 .press { position: relative; transition: transform 120ms ease, background-color 150ms ease, color 150ms ease; }
 .press:active { transform: scale(0.95); }
+/* Big cards you scroll past (book covers, "Continue listening"): the press shows only after a beat,
+   so a finger that starts a scroll on a card doesn't make the covers shrink and wobble. */
+.press-card { position: relative; transition: transform 140ms ease, background-color 150ms ease; }
+.press-card:active { transform: scale(0.97); transition-delay: 110ms; }
 
 /* Loading hint under a tab while its page is on the way. */
 .pending-bar {
@@ -279,13 +308,11 @@ html[data-platform="ios"] .mini-bar {
   backdrop-filter: blur(22px) saturate(1.8);
   box-shadow: 0 12px 32px -12px rgb(0 0 0 / 0.55), var(--glass-shine);
 }
-html[data-platform="ios"] .nav-bar { padding: 5px; transition: padding 250ms ease; }
+html[data-platform="ios"] .nav-bar { padding: 5px; }
 html[data-platform="ios"] .mini-bar { margin-bottom: 8px; padding: 6px 6px 6px 10px; }
-html[data-platform="ios"] .nav-item { min-height: 54px; border-radius: 999px; transition: background-color 200ms ease, min-height 250ms ease; }
+html[data-platform="ios"] .nav-item { min-height: 54px; border-radius: 999px; transition: background-color 200ms ease; }
 html[data-platform="ios"] .nav-item.is-active { background: color-mix(in oklab, var(--foreground) 11%, transparent); }
 html[data-platform="ios"] .nav-item .pending-bar { bottom: 3px; }
-html[data-platform="ios"] .bottom-chrome[data-compact] .nav-label { display: none; }
-html[data-platform="ios"] .bottom-chrome[data-compact] .nav-item { min-height: 40px; }
 html[data-platform="ios"] [data-slot="sheet-content"][data-side="bottom"] {
   left: 8px; right: 8px; bottom: 8px;
   border: 0.5px solid var(--glass-edge);

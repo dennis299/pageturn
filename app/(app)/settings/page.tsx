@@ -9,7 +9,7 @@ export default async function SettingsPage() {
   const { supabase, user } = await requireUser();
   const s = await loadSettings(supabase);
   return (
-    <div className="pt-safe mx-auto w-full max-w-2xl px-5 py-6 sm:px-8 md:py-10">
+    <div className="mx-auto w-full max-w-2xl px-5 py-6 sm:px-8 md:py-10">
       <h1 className="font-serif text-3xl sm:text-4xl">Settings</h1>
       <SettingsForm goal={s.goal} push={s.push} email={user.email ?? ""} isOwner={user.role === "owner"} />
     </div>
