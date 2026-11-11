@@ -1,5 +1,6 @@
 "use client";
-import { AUDIO_CACHE, offlineAudioUrl } from "@/lib/audio/blob-cache";
+import { AUDIO_CACHE, offlineAudioUrl, TAKE_HEADER } from "@/lib/audio/blob-cache";
+import { offlineCopyUsable } from "@/lib/audio/take";
 import { BUCKET } from "@/lib/env";
 import type { BookRow, ChunkRow } from "@/lib/db/types";
 import { createClient } from "@/lib/supabase/client";
@@ -60,10 +61,12 @@ export async function downloadChapters(
       row = { ...row, status: "ready", audio_path: fresh.audio_path, duration_sec: fresh.duration_sec, timings: fresh.timings };
       updated.set(c.idx, row);
     }
-    if (!(await cache.match(offlineAudioUrl(row.id)))) {
+    const saved = await cache.match(offlineAudioUrl(row.id));
+    if (!saved || !offlineCopyUsable(saved.headers.get(TAKE_HEADER), row, true)) {
       const { data, error } = await supabase.storage.from(BUCKET).download(row.audio_path!);
       if (error || !data) throw new Error("Download failed. Check your connection.");
-      await cache.put(offlineAudioUrl(row.id), new Response(data, { headers: { "Content-Type": "audio/mpeg" } }));
+      // Labelled with the take it holds, so a part that is remade later isn't played from this copy.
+      await cache.put(offlineAudioUrl(row.id), new Response(data, { headers: { "Content-Type": "audio/mpeg", [TAKE_HEADER]: row.audio_path! } }));
     }
     onProgress(++done, wanted.length);
   }

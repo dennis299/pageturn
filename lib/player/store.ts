@@ -1,6 +1,7 @@
 "use client";
 import { toast } from "sonner";
 import { BlobUrlCache } from "@/lib/audio/blob-cache";
+import { isCurrentTake } from "@/lib/audio/take";
 import { shouldOfferRecap } from "@/lib/book/recap";
 import { coverSrc } from "@/lib/cover";
 import { backfillCover } from "@/lib/cover-image";
@@ -92,6 +93,8 @@ export class PlayerStore {
   private audio: HTMLAudioElement;
   private blobs = new BlobUrlCache(4);
   private loadedChunk: number | null = null;
+  /** The file of the recording that is loaded in the player: which take of the part it is. */
+  private loadedPath: string | null = null;
   private loadToken = 0;
   private inflight = new Set<number>();
   private orPricing: { prompt: number; completion: number } | undefined;
@@ -131,7 +134,29 @@ export class PlayerStore {
   getState = () => this.state;
   private set(patch: Partial<PlayerState>) {
     this.state = { ...this.state, ...patch };
+    if (patch.chunks) this.dropStaleAudio();
     this.listeners.forEach((l) => l());
+  }
+
+  /**
+   * The recording in the player belongs to one take of a part. If that part has since been sent
+   * back to be remade, or remade (a new voice, corrected text), the recording is the old one:
+   * let go of it, so play waits for the new audio instead of repeating the old.
+   */
+  private dropStaleAudio() {
+    const idx = this.loadedChunk;
+    if (idx === null || this.mode === "recap") return;
+    const part = this.state.chunks[idx];
+    if (isCurrentTake(part, this.loadedPath)) return;
+    const wasPlaying = this.state.playing;
+    this.loadedChunk = null;
+    this.loadedPath = null;
+    this.audio.pause();
+    if (part) this.blobs.drop([part.id]);
+    // The pause above is ignored by the audio events (nothing counts as loaded any more), so say it here.
+    this.state = { ...this.state, playing: false, waiting: wasPlaying || this.state.waiting };
+    // Already remade: load the new recording. Still being remade: the usual "part is ready" step loads it.
+    if (part?.status === "ready" && part.audio_path) void this.load(idx, this.state.pos.offsetSec, this.state.waiting);
   }
 
   // ---- derived ------------------------------------------------------------
@@ -346,9 +371,10 @@ export class PlayerStore {
     try {
       const url = await this.blobs.get(chunk);
       if (token !== this.loadToken) return;
-      if (this.loadedChunk !== idx) {
+      if (this.loadedChunk !== idx || this.loadedPath !== chunk.audio_path) {
         this.audio.src = url;
         this.loadedChunk = idx;
+        this.loadedPath = chunk.audio_path;
         await new Promise<void>((res) => {
           if (this.audio.readyState >= 1) return res();
           this.audio.addEventListener("loadedmetadata", () => res(), { once: true });
