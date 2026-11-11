@@ -3,6 +3,11 @@ import type { CleanPage, HeadingCandidate, Line, PageText } from "./types";
 const PAGE_NUMBER = /^\s*(page\s*)?\d{1,4}\s*$/i;
 const ROMAN = /^\s*[ivxlcdm]{1,7}\s*$/i;
 const EDGE = 0.1;
+/**
+ * A running header doesn't always sit in the top tenth of the page: a section with a deeper top
+ * margin puts it a little lower. So the first (or last) line of a page counts too, down to here.
+ */
+const OUTER = 0.2;
 
 function median(xs: number[]): number {
   if (!xs.length) return 0;
@@ -19,6 +24,8 @@ function quantile(xs: number[], q: number): number {
 
 const atEdge = (l: Line) => l.y < EDGE || l.y > 1 - EDGE;
 const repeatKey = (t: string) => t.toLowerCase().replace(/\d+/g, "").replace(/\s+/g, " ").trim();
+/** The line's exact words (numbers kept), so "Chapter 1" and "Chapter 2" stay different lines. */
+const exactKey = (t: string) => t.toLowerCase().replace(/\s+/g, " ").trim();
 const nonSpace = (t: string) => t.replace(/\s/g, "").length;
 
 /**
@@ -42,15 +49,46 @@ export function cleanPages(pages: PageText[]): { pages: CleanPage[]; bodyFontSiz
   const repeatThreshold = Math.max(3, Math.ceil(0.3 * pages.length));
   const repeated = new Set([...seen].filter(([, set]) => set.size >= repeatThreshold).map(([k]) => k));
 
-  const keep = (l: Line) => {
+  // The same header again, but sitting just below the edge strip on some pages: the first or last
+  // line of the page, in ordinary type, with exactly the same words as on many other pages. Exact
+  // words (not the number-blind key above) so chapter titles that open several pages are kept.
+  const outermost = new Map<number, { first?: Line; last?: Line }>();
+  for (const p of pages) {
+    const lines = p.lines.filter((l) => l.text.trim());
+    let first: Line | undefined;
+    let last: Line | undefined;
+    for (const l of lines) {
+      if (!first || l.y < first.y) first = l;
+      if (!last || l.y > last.y) last = l;
+    }
+    outermost.set(p.page, { first, last });
+  }
+  const nearEdge = (l: Line, page: number) => {
+    if (atEdge(l) || l.fontSize >= 1.25 * bodyFontSize) return false;
+    const o = outermost.get(page);
+    return (l === o?.first && l.y < OUTER) || (l === o?.last && l.y > 1 - OUTER);
+  };
+  const seenExact = new Map<string, Set<number>>();
+  for (const p of pages)
+    for (const l of p.lines) {
+      if (!atEdge(l) && !nearEdge(l, p.page)) continue;
+      const k = exactKey(l.text);
+      if (k.length < 3) continue;
+      if (!seenExact.has(k)) seenExact.set(k, new Set());
+      seenExact.get(k)!.add(p.page);
+    }
+  const repeatedExact = new Set([...seenExact].filter(([, set]) => set.size >= repeatThreshold).map(([k]) => k));
+
+  const keep = (l: Line, page: number) => {
     if (!l.text.trim()) return false;
     if (atEdge(l) && (PAGE_NUMBER.test(l.text) || ROMAN.test(l.text))) return false;
     if (atEdge(l) && repeated.has(repeatKey(l.text))) return false;
+    if (nearEdge(l, page) && repeatedExact.has(exactKey(l.text))) return false;
     if (l.y > 0.75 && l.fontSize < 0.85 * bodyFontSize) return false;
     return true;
   };
 
-  const kept = pages.map((p) => ({ page: p.page, lines: p.lines.filter(keep).sort((a, b) => a.y - b.y) }));
+  const kept = pages.map((p) => ({ page: p.page, lines: p.lines.filter((l) => keep(l, p.page)).sort((a, b) => a.y - b.y) }));
 
   // Typical line spacing: the lower quartile of gaps between consecutive lines.
   const gaps = kept.flatMap((p) => p.lines.slice(1).map((l, i) => l.y - p.lines[i].y)).filter((g) => g > 0);

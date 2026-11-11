@@ -65,6 +65,40 @@ describe("cleanPages", () => {
     expect(out.bodyFontSize).toBe(11);
   });
 
+  it("removes a running header that sits lower on some pages (a section with a deeper top margin)", () => {
+    // The real case: the author's name at 2% from the top on most pages, but at 10.7% on one section's pages.
+    const deep = (n: number): PageText => ({ page: n, lines: [body("JANE AUTHOR", 0.107, 11), ...filler.map((t, i) => body(t, 0.146 + i * 0.03))] });
+    const pages = Array.from({ length: 12 }, (_, i) => (i >= 4 && i < 8 ? deep(i + 1) : page(i + 1, filler, [body("JANE AUTHOR", 0.019, 11)])));
+    const text = cleanPages(pages).pages.flatMap((p) => p.paragraphs).join(" ");
+    expect(text).not.toContain("JANE AUTHOR");
+    expect(text).toContain("The quick brown fox");
+  });
+
+  it("removes a header that is the first line of most pages even when it never reaches the very top", () => {
+    const pages = Array.from({ length: 10 }, (_, i) => ({
+      page: i + 1,
+      lines: [...(i % 2 === 0 ? [body("My Life in Letters", 0.12, 10)] : []), ...filler.map((t, j) => body(t, 0.17 + j * 0.03))],
+    }));
+    const text = cleanPages(pages).pages.flatMap((p) => p.paragraphs).join(" ");
+    expect(text).not.toContain("My Life in Letters");
+  });
+
+  it("keeps chapter titles that open several pages, even in body-size type", () => {
+    const pages = Array.from({ length: 10 }, (_, i) => ({
+      page: i + 1,
+      lines: [...(i % 2 === 0 ? [body(`Chapter ${i / 2 + 1}`, 0.15, 11)] : []), ...filler.map((t, j) => body(t, 0.21 + j * 0.03))],
+    }));
+    const text = cleanPages(pages).pages.flatMap((p) => p.paragraphs).join(" ");
+    for (const n of [1, 2, 3, 4, 5]) expect(text).toContain(`Chapter ${n}`);
+  });
+
+  it("keeps a name that appears in the middle of a page, like a sign-off", () => {
+    const pages = Array.from({ length: 10 }, (_, i) => page(i + 1, filler, [body("JANE AUTHOR", 0.019, 11)]));
+    pages[9].lines.push(body("JANE AUTHOR", 0.67, 11));
+    const last = cleanPages(pages).pages[9].paragraphs.join(" ");
+    expect(last).toContain("JANE AUTHOR");
+  });
+
   it("flags pages with < 20 chars as needing OCR", () => {
     const pages = [page(1, filler), { page: 2, lines: [body("x", 0.5)] }, { page: 3, lines: [] }];
     expect(cleanPages(pages).needsOcr).toEqual([2, 3]);
