@@ -18,7 +18,7 @@ export function RecapCard() {
           : "Recap paused"
         : "Press play: you'll hear this first";
   return (
-    <aside className="rounded-2xl border border-foil/40 bg-card p-4" aria-label="Previously on" aria-live="polite">
+    <aside className="glass-thin rounded-3xl p-4" aria-label="Previously on" aria-live="polite">
       <div className="flex items-start gap-3">
         <History className="mt-0.5 size-5 shrink-0 text-foil" aria-hidden />
         <div className="min-w-0 flex-1">

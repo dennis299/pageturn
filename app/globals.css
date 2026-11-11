@@ -96,20 +96,21 @@
 }
 
 .dark {
-  /* Night: bindery cloth, gold foil, bone paper */
-  --background: #0f211b;
+  /* Night: a dim reading room. Deep green-black, gold foil, bone paper. Kept quiet on purpose,
+     so the colour of the book you're in is what lights the screen. */
+  --background: #0b1411;
   --foreground: #ede6d3;
-  --card: #16302a;
+  --card: #131f1b;
   --card-foreground: #ede6d3;
-  --popover: #18342d;
+  --popover: #16231f;
   --popover-foreground: #ede6d3;
   --primary: #d9b45a;
   --primary-foreground: #10241e;
-  --secondary: #1d3a32;
+  --secondary: #1a2a25;
   --secondary-foreground: #ede6d3;
-  --muted: #1a352e;
+  --muted: #18251f;
   --muted-foreground: #a3b5ab;
-  --accent: #23443a;
+  --accent: #213630;
   --accent-foreground: #ede6d3;
   --destructive: #e0664f;
   --border: rgb(237 230 211 / 0.12);
@@ -124,12 +125,12 @@
   --chart-2: #7fb39c;
   --chart-3: #c8452f;
   --chart-4: #a3b5ab;
-  --chart-5: #23443a;
-  --sidebar: #0c1b16;
+  --chart-5: #213630;
+  --sidebar: #08100d;
   --sidebar-foreground: #ede6d3;
   --sidebar-primary: #d9b45a;
   --sidebar-primary-foreground: #10241e;
-  --sidebar-accent: #1a352e;
+  --sidebar-accent: #18251f;
   --sidebar-accent-foreground: #ede6d3;
   --sidebar-border: rgb(237 230 211 / 0.1);
   --sidebar-ring: #d9b45a;
@@ -188,8 +189,8 @@
 
 /* Frosted strip behind the iPhone status bar (zero height everywhere else). */
 .status-scrim {
-  position: fixed; inset: 0 0 auto 0; z-index: 45; height: env(safe-area-inset-top);
-  background: color-mix(in oklab, var(--background) 82%, transparent);
+  position: absolute; inset: 0 0 auto 0; z-index: 45; height: env(safe-area-inset-top);
+  background: color-mix(in oklab, var(--scrim, var(--background)) 82%, transparent);
   -webkit-backdrop-filter: blur(18px) saturate(1.6);
   backdrop-filter: blur(18px) saturate(1.6);
   pointer-events: none;
@@ -222,34 +223,33 @@
   *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; scroll-behavior: auto !important; }
 }
 
-/* Chapter scrubber: a thin cloth track that fills with foil, and a ribbon-red thumb */
+/* Chapter scrubber: a thick glass track that fills as you listen, like the iPhone's own sliders */
 .scrubber::-webkit-slider-runnable-track {
-  height: 4px;
+  height: 6px;
   border-radius: 999px;
-  background: linear-gradient(to right, var(--foil) var(--pct), var(--muted) var(--pct));
+  background: linear-gradient(to right, var(--foreground) var(--pct), color-mix(in oklab, var(--foreground) 22%, transparent) var(--pct));
 }
 .scrubber::-moz-range-track {
-  height: 4px;
+  height: 6px;
   border-radius: 999px;
-  background: linear-gradient(to right, var(--foil) var(--pct), var(--muted) var(--pct));
+  background: linear-gradient(to right, var(--foreground) var(--pct), color-mix(in oklab, var(--foreground) 22%, transparent) var(--pct));
 }
 .scrubber::-webkit-slider-thumb {
   -webkit-appearance: none;
   appearance: none;
-  margin-top: -6px;
+  margin-top: -5px;
   width: 16px;
   height: 16px;
   border-radius: 999px;
   background: var(--foreground);
-  border: 3px solid var(--background);
-  box-shadow: 0 0 0 1px var(--foil);
+  box-shadow: 0 2px 6px rgb(0 0 0 / 0.35);
 }
 .scrubber::-moz-range-thumb {
-  width: 12px;
-  height: 12px;
+  width: 16px;
+  height: 16px;
+  border: 0;
   border-radius: 999px;
   background: var(--foreground);
-  border: 3px solid var(--background);
 }
 .scrubber:focus-visible { outline: 2px solid var(--ring); outline-offset: 4px; border-radius: 4px; }
 
@@ -271,53 +271,172 @@
 }
 .pending-bar.is-pending { width: 18px; }
 
-/* Each screen fades in instead of popping. */
-@keyframes page-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
-.page-in { animation: page-in 200ms cubic-bezier(0.2, 0.7, 0.2, 1) both; }
+/* Each screen fades in instead of popping. Opacity only: a transform here would re-anchor
+   everything fixed inside the page while it runs. */
+@keyframes page-in { from { opacity: 0; } to { opacity: 1; } }
+/* No fill mode: an animation that keeps "holding" its last frame turns this wrapper into its own
+   compositing island, and glass inside the page then blurs nothing (text showed sharp through it). */
+.page-in { animation: page-in 180ms ease-out; }
+
+/* ──────────────────────────────────────────────────────────────────────────
+   The app frame. The page itself never scrolls: the frame is pinned to the
+   screen and each screen scrolls inside it, the way a native app does. That
+   keeps the tab bar and the status bar still, stops the whole app rubber-
+   banding, and survives leaving the app and coming back.
+   ────────────────────────────────────────────────────────────────────────── */
+.app-frame { position: fixed; inset: 0; display: flex; overflow: hidden; background: var(--background); }
+.app-scroll {
+  overflow-x: clip; overflow-y: auto;
+  overscroll-behavior-y: contain;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-gutter: auto;
+}
+
+/* ──────────────────────────────────────────────────────────────────────────
+   Glass. One material for everything that floats above the content: the tab
+   bar, the mini player, sheets, menus and the player's controls.
+   ────────────────────────────────────────────────────────────────────────── */
+:root {
+  --glass: color-mix(in oklab, #ffffff 66%, transparent);
+  --glass-thin: color-mix(in oklab, #ffffff 46%, transparent);
+  --glass-edge: rgb(0 0 0 / 0.08);
+  --glass-shine: inset 0 1px 0 rgb(255 255 255 / 0.9), inset 0 -1px 0 rgb(0 0 0 / 0.04);
+  --glass-shadow: 0 14px 34px -16px rgb(0 0 0 / 0.3);
+  --glass-press: color-mix(in oklab, var(--foreground) 9%, transparent);
+}
+.dark {
+  --glass: color-mix(in oklab, var(--card) 62%, transparent);
+  --glass-thin: rgb(255 255 255 / 0.1);
+  --glass-edge: rgb(255 255 255 / 0.15);
+  --glass-shine: inset 0 1px 0 rgb(255 255 255 / 0.17), inset 0 -1px 0 rgb(0 0 0 / 0.2);
+  --glass-shadow: 0 14px 34px -12px rgb(0 0 0 / 0.6);
+  --glass-press: rgb(255 255 255 / 0.13);
+}
+.glass, .glass-thin {
+  border: 0.5px solid var(--glass-edge);
+  background: var(--glass);
+  -webkit-backdrop-filter: blur(24px) saturate(1.8);
+  backdrop-filter: blur(24px) saturate(1.8);
+  box-shadow: var(--glass-shadow), var(--glass-shine);
+}
+/* Thin glass: sits on colour (the player), so it lets more of it through. */
+.glass-thin { background: var(--glass-thin); }
+.glass-btn { transition: background-color 150ms ease, transform 120ms ease; }
+.glass-btn:hover { background: var(--glass-press); }
+.glass-btn:active { background: var(--glass-press); transform: scale(0.94); }
+
+/* Two-way switch (Listen / Read). */
+.segmented { display: inline-grid; grid-auto-flow: column; grid-auto-columns: 1fr; padding: 3px; border-radius: 999px; }
+.segmented button {
+  min-height: 34px; padding: 0 16px; border-radius: 999px; font-size: 14px; font-weight: 500;
+  color: color-mix(in oklab, var(--foreground) 72%, transparent);
+  transition: background-color 180ms ease, color 180ms ease;
+}
+.segmented button[aria-pressed="true"] {
+  color: var(--foreground);
+  background: color-mix(in oklab, var(--foreground) 16%, transparent);
+  box-shadow: inset 0 0.5px 0 rgb(255 255 255 / 0.2);
+}
+
+/* ---------- Book covers ---------- */
+.book-cover {
+  border-radius: 4px 9px 9px 4px;
+  background-color: var(--cloth, #1e4636);
+  box-shadow: 0 16px 36px -16px rgb(0 0 0 / 0.7), 0 3px 8px -3px rgb(0 0 0 / 0.45);
+}
+.book-sheen {
+  border-radius: inherit;
+  background: linear-gradient(100deg, rgb(0 0 0 / 0.3), rgb(255 255 255 / 0.12) 4.5%, transparent 11%, transparent 90%, rgb(0 0 0 / 0.14));
+  box-shadow: inset 0 0 0 0.5px rgb(255 255 255 / 0.16);
+}
+
+/* ---------- A book's own light ----------
+   --book is the colour taken from the cover. It floods the player, tints the card that resumes
+   the book, and glows under the mini player. */
+.book-wash {
+  position: absolute; inset: 0; z-index: 0; overflow: hidden; pointer-events: none;
+  background:
+    radial-gradient(130% 62% at 50% 0%, color-mix(in oklab, var(--book) 96%, white 4%), transparent 78%),
+    linear-gradient(to bottom, color-mix(in oklab, var(--book) 82%, black), color-mix(in oklab, var(--book) 34%, #07090a) 62%, #07090a);
+}
+.book-wash img {
+  position: absolute; left: -15%; top: -12%; width: 130%; max-width: none; height: 72%;
+  object-fit: cover; opacity: 0.5;
+  filter: blur(56px) saturate(1.5);
+  -webkit-mask-image: linear-gradient(to bottom, black 35%, transparent);
+  mask-image: linear-gradient(to bottom, black 35%, transparent);
+}
+/* The quiet version, behind the page you read. */
+.book-wash-soft {
+  position: absolute; inset: 0 0 auto 0; height: 22rem; z-index: 0; pointer-events: none;
+  background: linear-gradient(to bottom, color-mix(in oklab, var(--book) 26%, var(--background)), var(--background));
+}
+.book-card {
+  background:
+    linear-gradient(115deg, color-mix(in oklab, var(--book) 88%, black 12%), color-mix(in oklab, var(--book) 50%, #0a0d0c));
+  color: #f4efe2;
+  box-shadow: 0 18px 40px -22px color-mix(in oklab, var(--book) 80%, black), inset 0 1px 0 rgb(255 255 255 / 0.16);
+}
+
+/* ---------- Player ---------- */
+.player-panel { position: relative; isolation: isolate; }
+/* On a phone the colour runs up behind the clock. */
+@media (max-width: 1023px) {
+  .player-panel {
+    margin-top: calc(-1 * env(safe-area-inset-top)); padding-top: env(safe-area-inset-top);
+    margin-bottom: calc(-1 * env(safe-area-inset-bottom)); padding-bottom: calc(env(safe-area-inset-bottom) + 1.25rem);
+  }
+}
+.play-btn {
+  background: var(--foreground); color: var(--background);
+  box-shadow: 0 10px 28px -10px rgb(0 0 0 / 0.6);
+  transition: transform 140ms ease;
+}
+.play-btn:active { transform: scale(0.93); }
+
+/* ---------- The page you read ---------- */
+.reader { font-size: var(--reader-size, 1.2rem); line-height: 1.72; }
+.reader p { margin: 0 0 0.9em; text-wrap: pretty; hanging-punctuation: first; }
+.reader .sentence { cursor: pointer; border-radius: 3px; transition: background-color 200ms ease, color 200ms ease; -webkit-tap-highlight-color: transparent; }
+.reader .sentence.is-heard { color: var(--muted-foreground); }
+.top-bar-pinned { position: sticky; top: env(safe-area-inset-top); z-index: 30; }
+.reader-dock { position: sticky; bottom: calc(env(safe-area-inset-bottom) + 10px); z-index: 30; }
 
 /* ──────────────────────────────────────────────────────────────────────────
    Native look per phone. <html data-platform="ios|android|desktop"> is set
    before first paint (app/layout.tsx). Unlayered, so it wins over utilities.
+   iPhone and desktop share the glass look; Android gets Material.
    ────────────────────────────────────────────────────────────────────────── */
 .nav-indicator { display: flex; align-items: center; justify-content: center; }
 .sheet-grabber { display: none; }
 
-/* ---------- iPhone: iOS 26 "Liquid Glass" ---------- */
-html[data-platform="ios"] {
-  --font-ui: -apple-system, "SF Pro Text", system-ui, sans-serif;
-  --glass: color-mix(in oklab, var(--card) 58%, transparent);
-  --glass-edge: rgb(255 255 255 / 0.16);
-  --glass-shine: inset 0 1px 0 rgb(255 255 255 / 0.16), inset 0 -1px 0 rgb(0 0 0 / 0.18);
-}
-html[data-platform="ios"]:not(.dark) {
-  --glass: color-mix(in oklab, #ffffff 62%, transparent);
-  --glass-edge: rgb(0 0 0 / 0.08);
-  --glass-shine: inset 0 1px 0 rgb(255 255 255 / 0.9), inset 0 -1px 0 rgb(0 0 0 / 0.04);
-}
-html[data-platform="ios"] .bottom-chrome {
+html[data-platform="ios"] { --font-ui: -apple-system, "SF Pro Text", system-ui, sans-serif; }
+
+/* ---------- iPhone (and anything that isn't Android): glass ---------- */
+html:not([data-platform="android"]) .bottom-chrome {
   padding: 0 14px calc(env(safe-area-inset-bottom) + 6px);
   pointer-events: none;
 }
-html[data-platform="ios"] .bottom-chrome > * { pointer-events: auto; }
-html[data-platform="ios"] .nav-bar,
-html[data-platform="ios"] .mini-bar {
+html:not([data-platform="android"]) .bottom-chrome > * { pointer-events: auto; }
+html:not([data-platform="android"]) .nav-bar,
+html:not([data-platform="android"]) .mini-bar {
   border: 0.5px solid var(--glass-edge);
   border-radius: 999px;
   background: var(--glass);
-  -webkit-backdrop-filter: blur(22px) saturate(1.8);
-  backdrop-filter: blur(22px) saturate(1.8);
-  box-shadow: 0 12px 32px -12px rgb(0 0 0 / 0.55), var(--glass-shine);
+  -webkit-backdrop-filter: blur(24px) saturate(1.8);
+  backdrop-filter: blur(24px) saturate(1.8);
+  box-shadow: var(--glass-shadow), var(--glass-shine);
 }
-html[data-platform="ios"] .nav-bar { padding: 5px; }
-html[data-platform="ios"] .mini-bar { margin-bottom: 8px; padding: 6px 6px 6px 10px; }
-html[data-platform="ios"] .nav-item { min-height: 54px; border-radius: 999px; transition: background-color 200ms ease; }
-html[data-platform="ios"] .nav-item.is-active { background: color-mix(in oklab, var(--foreground) 11%, transparent); }
-html[data-platform="ios"] .nav-item .pending-bar { bottom: 3px; }
-html[data-platform="ios"] [data-slot="sheet-content"][data-side="bottom"] {
-  left: 8px; right: 8px; bottom: 8px;
+html:not([data-platform="android"]) .nav-bar { padding: 5px; }
+html:not([data-platform="android"]) .mini-bar { margin-bottom: 8px; padding: 6px 6px 6px 8px; }
+html:not([data-platform="android"]) .nav-item { min-height: 54px; border-radius: 999px; transition: background-color 200ms ease; }
+html:not([data-platform="android"]) .nav-item.is-active { background: color-mix(in oklab, var(--foreground) 11%, transparent); }
+html:not([data-platform="android"]) .nav-item .pending-bar { bottom: 3px; }
+html:not([data-platform="android"]) [data-slot="sheet-content"][data-side="bottom"] {
+  left: 8px; right: 8px; bottom: calc(env(safe-area-inset-bottom) * 0.35 + 8px);
   border: 0.5px solid var(--glass-edge);
   border-radius: 34px;
-  background: color-mix(in oklab, var(--popover) 80%, transparent);
+  background: color-mix(in oklab, var(--popover) 78%, transparent);
   -webkit-backdrop-filter: blur(30px) saturate(1.6);
   backdrop-filter: blur(30px) saturate(1.6);
   box-shadow: 0 20px 50px -20px rgb(0 0 0 / 0.6), var(--glass-shine);
@@ -327,15 +446,16 @@ html[data-platform="android"] .sheet-grabber {
   display: block; flex: none; width: 36px; height: 5px; margin: 8px auto -8px; border-radius: 3px;
   background: color-mix(in oklab, var(--foreground) 28%, transparent);
 }
-html[data-platform="ios"] [data-slot="dropdown-menu-content"] {
+html:not([data-platform="android"]) [data-slot="dropdown-menu-content"] {
+  border: 0.5px solid var(--glass-edge);
   border-radius: 22px;
   background: var(--glass);
   -webkit-backdrop-filter: blur(24px) saturate(1.8);
   backdrop-filter: blur(24px) saturate(1.8);
   box-shadow: 0 16px 40px -16px rgb(0 0 0 / 0.6), var(--glass-shine);
 }
-html[data-platform="ios"] [data-slot="button"] { border-radius: 999px; }
-html[data-platform="ios"] .rounded-2xl { border-radius: 26px; }
+html:not([data-platform="android"]) [data-slot="button"] { border-radius: 999px; }
+html:not([data-platform="android"]) .rounded-2xl { border-radius: 26px; }
 
 /* ---------- Android: Material 3 Expressive ---------- */
 html[data-platform="android"] {

@@ -7,6 +7,8 @@ export type ShelfBook = {
   title: string;
   author: string | null;
   voiceName: string;
+  coverPath: string | null;
+  coverColor: string | null;
   percent: number;
   secondsLeft: number;
   chapterTitle: string | null;
@@ -17,7 +19,7 @@ export type ShelfBook = {
 /** Books with progress, most recently listened first. */
 export async function loadShelf(supabase: SupabaseClient): Promise<ShelfBook[]> {
   const [{ data: books, error }, { data: progress }, { data: chapters }] = await Promise.all([
-    supabase.from("ab_books").select("id,title,author,voice_name,total_chars,finished_at,created_at").order("created_at", { ascending: false }),
+    supabase.from("ab_books").select("id,title,author,voice_name,total_chars,finished_at,created_at,cover_path,cover_color").order("created_at", { ascending: false }),
     supabase.from("ab_progress").select("book_id,chunk_idx,offset_sec,updated_at"),
     supabase.from("ab_chapters").select("book_id,idx,title,first_chunk,last_chunk,char_count").order("idx"),
   ]);
@@ -35,6 +37,8 @@ export async function loadShelf(supabase: SupabaseClient): Promise<ShelfBook[]> 
         title: b.title,
         author: b.author,
         voiceName: b.voice_name,
+        coverPath: b.cover_path,
+        coverColor: b.cover_color,
         percent,
         secondsLeft: remainingSeconds(b.total_chars, percent),
         chapterTitle: current?.title ?? null,

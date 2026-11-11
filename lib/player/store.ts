@@ -2,6 +2,8 @@
 import { toast } from "sonner";
 import { BlobUrlCache } from "@/lib/audio/blob-cache";
 import { shouldOfferRecap } from "@/lib/book/recap";
+import { coverSrc } from "@/lib/cover";
+import { backfillCover } from "@/lib/cover-image";
 import { BUCKET } from "@/lib/env";
 import { dayKey } from "@/lib/stats/streak";
 import type { BookRow, ChunkRow, ProviderId } from "@/lib/db/types";
@@ -103,6 +105,13 @@ export class PlayerStore {
   private syncTimer: ReturnType<typeof setInterval> | undefined;
   private unlocked = false;
   private mode: "book" | "recap" = "book";
+  /** False while you only read, or while the last book is just sitting in the mini player: no audio is made until it's wanted. */
+  private audioWanted = true;
+  private hiddenAt = 0;
+  private retried = new Set<string>();
+  private art: { key: string; url: string | null } | null = null;
+  private saveTimer: ReturnType<typeof setTimeout> | undefined;
+  private opening: string | null = null;
   private recapAudio: Promise<{ text: string; url: string } | null> | null = null;
 
   constructor() {
@@ -140,11 +149,22 @@ export class PlayerStore {
   }
 
   // ---- loading ------------------------------------------------------------
-  async open(bookId: string) {
+  /**
+   * Opens a book. `quiet` loads it without making any audio yet: for silent reading, and for the
+   * last book waiting in the mini player when the app starts.
+   */
+  async open(bookId: string, opts: { quiet?: boolean } = {}) {
     if (this.state.book?.id === bookId) {
-      this.pump();
+      if (!opts.quiet) this.wantAudio();
       return;
     }
+    if (this.opening === bookId) {
+      // Already on its way (the mini player was loading it, or a double tap): don't load it twice.
+      if (!opts.quiet) this.audioWanted = true;
+      return;
+    }
+    this.opening = bookId;
+    this.audioWanted = !opts.quiet;
     if (this.state.book) this.stop();
     this.set({ ...initialPlayerState, rate: this.state.rate });
     this.texts.clear();
@@ -159,6 +179,7 @@ export class PlayerStore {
         supabase.from("ab_chunks").select(CHUNK_COLS).eq("book_id", bookId).order("idx").range(0, 19999),
         supabase.from("ab_progress").select("chunk_idx,offset_sec,updated_at").eq("book_id", bookId).maybeSingle(),
       ]);
+      if (this.opening !== bookId) return;
       if (bookRes.error) throw bookRes.error;
       if (chRes.error) throw chRes.error;
       if (ckRes.error) throw ckRes.error;
@@ -174,12 +195,18 @@ export class PlayerStore {
       );
     } catch (e) {
       const snap = await loadOfflineBook(bookId).catch(() => null);
+      if (this.opening !== bookId) return;
       if (snap) {
         this.loadBook(snap.book, snap.chapters, snap.chunks, undefined, true);
         for (const [idx, text] of Object.entries(snap.texts)) this.texts.set(Number(idx), text);
+      } else if (opts.quiet) {
+        // The book that was waiting in the mini player is gone (deleted elsewhere): just drop it.
+        forgetLastBook(bookId);
       } else {
         this.set({ error: e instanceof Error ? e.message : "Couldn't open this book." });
       }
+    } finally {
+      if (this.opening === bookId) this.opening = null;
     }
   }
 
@@ -191,7 +218,12 @@ export class PlayerStore {
     this.set({ book, chapters, chunks, pos, offline, finished: Boolean(book.finished_at), lastListenedAt, recap: { status: "none", text: null } });
     this.mode = "book";
     this.recapAudio = null;
-    if (!offline && shouldOfferRecap({ posIdx: pos.chunkIdx, lastListenedAt, recapHeardOn: recapHeardOn(book.id) })) {
+    this.retried.clear();
+    rememberLastBook(book.id);
+    if (!offline) void backfillCover(book).then((c) => c && this.state.book?.id === book.id && this.patchBook(c));
+    // The day's recap is only written when you've opened the book to listen, not for silent reading
+    // and not for the book that's merely waiting in the mini player.
+    if (!offline && this.audioWanted && shouldOfferRecap({ posIdx: pos.chunkIdx, lastListenedAt, recapHeardOn: recapHeardOn(book.id) })) {
       this.recapAudio = this.prepareRecap(book.id, pos.chunkIdx);
     }
     this.updateMediaSession();
@@ -225,6 +257,78 @@ export class PlayerStore {
     const { data } = await createClient().from("ab_chunks").select("idx,text").eq("book_id", b.id).gte("idx", idx).lte("idx", idx + 4);
     for (const r of data ?? []) this.texts.set(r.idx, r.text);
     return this.texts.get(idx) ?? null;
+  }
+
+  /** The text of every part of a chapter, in order (one request for what isn't loaded yet). */
+  async getChapterTexts(chapter: ChapterMeta): Promise<{ idx: number; text: string }[]> {
+    const b = this.state.book;
+    if (!b) return [];
+    let missing = false;
+    for (let i = chapter.firstChunk; i <= chapter.lastChunk; i++) if (!this.texts.has(i)) missing = true;
+    if (missing && !this.state.offline) {
+      const { data } = await createClient()
+        .from("ab_chunks")
+        .select("idx,text")
+        .eq("book_id", b.id)
+        .gte("idx", chapter.firstChunk)
+        .lte("idx", chapter.lastChunk);
+      for (const r of data ?? []) this.texts.set(r.idx, r.text);
+    }
+    const out: { idx: number; text: string }[] = [];
+    for (let i = chapter.firstChunk; i <= chapter.lastChunk; i++) {
+      const text = this.texts.get(i);
+      if (text !== undefined) out.push({ idx: i, text });
+    }
+    return out;
+  }
+
+  /** Audio is wanted from now on (you opened the listening view or pressed play): start making it. */
+  wantAudio() {
+    this.audioWanted = true;
+    this.pump();
+  }
+
+  /** You're only reading: stop making audio ahead of time (anything already playing carries on). */
+  readQuietly() {
+    if (!this.state.playing && !this.state.waiting) this.audioWanted = false;
+  }
+
+  /**
+   * Your place while reading without the voice: the part at the top of the page. Listening later
+   * starts from here. Ignored while the voice is playing, because then the voice sets your place.
+   */
+  readTo(chunkIdx: number) {
+    if (!this.state.book || this.state.playing || this.state.waiting || this.mode === "recap") return;
+    const idx = Math.min(Math.max(0, chunkIdx), this.state.chunks.length - 1);
+    if (idx === this.state.pos.chunkIdx) return;
+    this.set({ pos: { chunkIdx: idx, offsetSec: 0 }, finished: false });
+    this.persistLocal(true);
+    this.updateMediaSession();
+    clearTimeout(this.saveTimer);
+    this.saveTimer = setTimeout(() => this.saveProgress(), 4000);
+  }
+
+  /** Time spent reading counts towards your day like listening does. */
+  addReadingTime(seconds: number) {
+    if (!this.state.book || seconds <= 0) return;
+    if (!this.sessionId || Date.now() - this.lastPauseAt > SESSION_GAP_MS) this.sessionId = crypto.randomUUID();
+    this.lastPauseAt = Date.now();
+    this.listened += Math.min(60, seconds);
+  }
+
+  /** You read to the last line of the book. */
+  finishReading() {
+    if (!this.state.book || this.state.finished || this.state.playing) return;
+    this.set({ finished: true });
+    this.saveProgress({ finished: true });
+  }
+
+  /** Applies changed book details (title, author, cover) to the open book. */
+  patchBook(fields: Partial<BookRow>) {
+    const b = this.state.book;
+    if (!b) return;
+    this.set({ book: { ...b, ...fields } });
+    this.updateMediaSession(true);
   }
 
   // ---- playback -----------------------------------------------------------
@@ -323,6 +427,7 @@ export class PlayerStore {
       this.audio.play().catch(() => {});
     }
     this.unlocked = true;
+    this.audioWanted = true;
     this.set({ error: null });
     if (Date.now() - this.lastPauseAt > SESSION_GAP_MS || !this.sessionId) this.sessionId = crypto.randomUUID();
     if (this.recapAudio && this.state.recap.status !== "done") {
@@ -438,6 +543,7 @@ export class PlayerStore {
 
   /** Forget the open book (after it's deleted). */
   close() {
+    forgetLastBook(this.state.book?.id);
     this.stop();
     this.blobs.clear();
     this.texts.clear();
@@ -457,7 +563,7 @@ export class PlayerStore {
   /** Starts generating upcoming chunks (at most two at a time), asking first when a paid chapter needs approval. */
   pump() {
     const { book, chunks, chapters, pos, offline } = this.state;
-    if (!book || offline || !navigator.onLine) return;
+    if (!book || offline || !navigator.onLine || !this.audioWanted) return;
     const todo = chunksToGenerate(
       chunks,
       chapters.map((c) => ({ idx: c.idx, firstChunk: c.firstChunk, lastChunk: c.lastChunk })),
@@ -702,6 +808,24 @@ export class PlayerStore {
         this.pause();
       }
     });
+    a.addEventListener("error", () => {
+      // A part that won't play (the phone dropped it while the app was away, or a bad download):
+      // fetch it again once before giving up, instead of leaving the player stuck.
+      if (this.mode === "recap") return this.finishRecap(true);
+      const idx = this.loadedChunk;
+      const chunk = idx === null ? undefined : this.state.chunks[idx];
+      if (idx === null || !chunk) return;
+      const wasPlaying = this.state.playing || this.state.waiting;
+      this.blobs.drop([chunk.id]);
+      this.loadedChunk = null;
+      if (this.retried.has(chunk.id)) {
+        this.retried.delete(chunk.id);
+        this.set({ playing: false, waiting: false, error: "This part wouldn't play. Check your connection and press play again." });
+        return;
+      }
+      this.retried.add(chunk.id);
+      void this.load(idx, this.state.pos.offsetSec, wasPlaying);
+    });
     a.addEventListener("ended", () => {
       if (this.mode === "recap") return this.finishRecap(true);
       if (this.loadedChunk === null) return;
@@ -735,7 +859,12 @@ export class PlayerStore {
 
   private wireLifecycle() {
     const flushHidden = () => {
-      if (document.visibilityState === "hidden") this.saveProgress({ beacon: true });
+      if (document.visibilityState === "hidden") {
+        this.hiddenAt = Date.now();
+        this.saveProgress({ beacon: true });
+      } else {
+        void this.resume();
+      }
     };
     document.addEventListener("visibilitychange", flushHidden);
     window.addEventListener("pagehide", () => this.saveProgress({ beacon: true }));
@@ -760,19 +889,68 @@ export class PlayerStore {
     }
   }
 
-  private updateMediaSession() {
+  /**
+   * Back in the app after it was in the background. The phone may have paused the audio or thrown
+   * away what was loaded, and parts may have finished being made meanwhile: bring the player back
+   * in step with reality instead of showing a stale screen.
+   */
+  private async resume() {
+    const b = this.state.book;
+    if (!b) return;
+    if (this.state.playing && this.audio.paused) this.set({ playing: false });
+    if (this.state.offline || !navigator.onLine) return;
+    void flushOfflineProgress();
+    const away = Date.now() - this.hiddenAt;
+    if (this.hiddenAt && away > 20_000 && !this.state.playing) {
+      const { data } = await createClient().from("ab_chunks").select(CHUNK_COLS).eq("book_id", b.id).order("idx").range(0, 19999);
+      if (data?.length && this.state.book?.id === b.id && data.length === this.state.chunks.length) {
+        const fresh = data as ChunkMeta[];
+        const old = this.state.chunks;
+        const changed = fresh.some((c, i) => !this.inflight.has(i) && (c.status !== old[i].status || c.audio_path !== old[i].audio_path));
+        // Parts being made by this window keep their local "generating" state.
+        if (changed) this.set({ chunks: fresh.map((c, i) => (this.inflight.has(i) ? old[i] : c)) });
+        const at = this.state.pos;
+        if (this.state.chunks[at.chunkIdx]?.status === "ready" && this.loadedChunk !== at.chunkIdx) void this.load(at.chunkIdx, at.offsetSec, this.state.waiting);
+      }
+    }
+    this.pump();
+  }
+
+  /** Fetches the cover once per photo, as a local image the lock screen can always show. */
+  private async loadArt(book: BookRow): Promise<void> {
+    const src = coverSrc(book);
+    const key = `${book.id}|${src ?? ""}`;
+    if (this.art?.key === key) return;
+    if (this.art?.url) URL.revokeObjectURL(this.art.url);
+    this.art = { key, url: null };
+    if (!src) return;
+    try {
+      const res = await fetch(src);
+      if (!res.ok) return;
+      const url = URL.createObjectURL(await res.blob());
+      if (this.art?.key !== key) return URL.revokeObjectURL(url);
+      this.art = { key, url };
+      if (this.state.book?.id === book.id) this.updateMediaSession(true);
+    } catch {}
+  }
+
+  private updateMediaSession(force = false) {
     if (!("mediaSession" in navigator) || !this.state.book) return;
+    const book = this.state.book;
+    void this.loadArt(book);
     const ch = this.chapterOf(this.state.pos.chunkIdx);
-    const title = ch?.title ?? this.state.book.title;
+    const title = ch?.title ?? book.title;
     const cur = navigator.mediaSession.metadata;
     // Only when something changed: replacing the metadata on every part makes the iPhone lock screen redraw and flicker.
-    if (cur && cur.title === title && cur.artist === this.state.book.title) return;
+    if (!force && cur && cur.title === title && cur.artist === book.title) return;
     const icon = (p: string) => new URL(p, location.origin).href;
+    const cover = this.art?.key.startsWith(`${book.id}|`) ? this.art.url : null;
     navigator.mediaSession.metadata = new MediaMetadata({
       title,
-      artist: this.state.book.title,
-      album: this.state.book.author ?? "Pageturn",
+      artist: book.title,
+      album: book.author ?? "Pageturn",
       artwork: [
+        ...(cover ? [{ src: cover, sizes: "600x900", type: "image/jpeg" }] : []),
         { src: icon("/icons/icon-192.png"), sizes: "192x192", type: "image/png" },
         { src: icon("/icons/icon-512.png"), sizes: "512x512", type: "image/png" },
       ],
@@ -829,4 +1007,25 @@ function markRecapHeard(bookId: string) {
   try {
     localStorage.setItem(recapKey(bookId), today());
   } catch {}
+}
+
+// ---- the book you had open last (per device) -------------------------------
+const LAST_BOOK = "ab-last-book";
+function rememberLastBook(bookId: string) {
+  try {
+    localStorage.setItem(LAST_BOOK, bookId);
+  } catch {}
+}
+function forgetLastBook(bookId: string | undefined) {
+  try {
+    if (bookId && localStorage.getItem(LAST_BOOK) === bookId) localStorage.removeItem(LAST_BOOK);
+  } catch {}
+}
+/** The book to put back in the mini player when the app starts. */
+export function lastBookId(): string | null {
+  try {
+    return localStorage.getItem(LAST_BOOK);
+  } catch {
+    return null;
+  }
 }

@@ -32,3 +32,19 @@ describe("sentenceTimings", () => {
     expect(t[2].t1).toBeCloseTo(10);
   });
 });
+
+describe("estimated timings", () => {
+  it("leaves a breath after each sentence, so short sentences aren't rushed", () => {
+    // Two equal sentences then a long one: with letters alone the first two would get 2 × 5/30 of the time.
+    const t = sentenceTimings("Stop. Wait. This one goes on for quite a while longer.", 10);
+    const lettersOnly = (10 * 5) / (5 + 5 + 44);
+    expect(t[0].t1 - t[0].t0).toBeGreaterThan(lettersOnly * 1.5);
+    expect(t[2].t1).toBeCloseTo(10);
+  });
+
+  it("gives numbers more time than the same count of letters", () => {
+    const withNumber = sentenceTimings("It was 1984. The end came.", 10);
+    const withWord = sentenceTimings("It was late. The end came.", 10);
+    expect(withNumber[0].t1).toBeGreaterThan(withWord[0].t1);
+  });
+});

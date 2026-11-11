@@ -5,6 +5,8 @@ import { usePathname } from "next/navigation";
 import { ChartNoAxesColumn, LibraryBig, Plus, Settings2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { MiniPlayer } from "@/components/player/mini-player";
+import { usePlayerStore } from "@/components/player/player-provider";
+import { lastBookId } from "@/lib/player/store";
 import { TimezoneSync } from "@/components/timezone-sync";
 import { LogoMark } from "@/components/logo-mark";
 
@@ -90,6 +92,21 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     measure();
     return () => ro.disconnect();
   }, [inPlayer]);
+
+  // Each screen scrolls inside the frame, so a new screen has to start at its top.
+  const scroller = useRef<HTMLElement>(null);
+  useEffect(() => {
+    scroller.current?.scrollTo(0, 0);
+  }, [path]);
+
+  // The book you had open last waits in the mini player from the moment the app starts, the way a
+  // music app comes back with your last album. Nothing is played or made until you press play.
+  const store = usePlayerStore();
+  useEffect(() => {
+    if (!store || store.getState().book || location.pathname.startsWith("/book/")) return;
+    const id = lastBookId();
+    if (id) void store.open(id, { quiet: true });
+  }, [store]);
   const items = (variant: "rail" | "bar") =>
     NAV.map((n) => (
       <NavItem
@@ -102,11 +119,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     ));
 
   return (
-    <div className="flex min-h-dvh">
+    <div className="app-frame">
       <TimezoneSync />
-      {/* Behind the iPhone status bar: pages scroll under a frosted strip, not under the clock. */}
-      <div className="status-scrim app-chrome" aria-hidden />
-      <aside className="app-chrome sticky top-0 hidden h-dvh w-60 shrink-0 flex-col border-r border-sidebar-border bg-sidebar px-4 py-6 md:flex">
+      <aside className="app-chrome hidden h-full w-60 shrink-0 flex-col border-r border-sidebar-border bg-sidebar px-4 py-6 md:flex">
         <Link href="/" className="px-3">
           <Wordmark />
         </Link>
@@ -118,15 +133,18 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </div>
       </aside>
 
-      <div className="flex min-w-0 flex-1 flex-col">
+      <div className="relative flex min-w-0 flex-1 flex-col">
+        {/* Behind the iPhone status bar: screens scroll under a frosted strip, not under the clock. */}
+        <div className="status-scrim app-chrome" aria-hidden />
         <main
-          className={cn("app-main flex-1", !inPlayer && "with-bottom-chrome")}
+          ref={scroller}
+          className={cn("app-main app-scroll min-h-0 flex-1", !inPlayer && "with-bottom-chrome")}
           style={chromeH ? ({ "--bottom-chrome": `${chromeH}px` } as React.CSSProperties) : undefined}
         >
           {children}
         </main>
         {!inPlayer && (
-          <div ref={chrome} className="app-chrome bottom-chrome fixed inset-x-0 bottom-0 z-40 md:hidden">
+          <div ref={chrome} className="app-chrome bottom-chrome absolute inset-x-0 bottom-0 z-40 md:hidden">
             <MiniPlayer variant="bar" />
             <nav className="nav-bar pb-safe grid grid-cols-4 border-t border-border bg-background/92 backdrop-blur-md" aria-label="Main">
               {items("bar")}

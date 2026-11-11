@@ -16,7 +16,7 @@ export function sentenceSpans(text: string): { s: number; e: number }[] {
 
 /**
  * When each sentence of a chunk is spoken. Uses per-character alignment when the provider gives
- * one (ElevenLabs); otherwise spreads the audio duration over sentences by character count.
+ * one (ElevenLabs); otherwise estimates them from each sentence's length and pauses.
  */
 export function sentenceTimings(text: string, durationSec: number, alignment?: Alignment): SentenceTiming[] {
   const spans = sentenceSpans(text);
@@ -31,7 +31,24 @@ export function sentenceTimings(text: string, durationSec: number, alignment?: A
     }));
   }
 
-  const weights = spans.map(({ s, e }) => text.slice(s, e).replace(/\s/g, "").length || 1);
+  return spread(text, spans, durationSec);
+}
+
+/**
+ * How long a sentence takes to say, in "characters": its letters, plus the breath after it and the
+ * small pauses at commas, plus digits (a number is longer spoken than written). The weights were
+ * fitted to parts with real timings: they put the highlight about 0.8 s from the voice on average,
+ * against about 1 s when only letters are counted.
+ */
+function speechWeight(sentence: string, isLast: boolean): number {
+  const letters = sentence.replace(/\s/g, "").length || 1;
+  const digits = sentence.replace(/[^0-9]/g, "").length;
+  const pauses = sentence.replace(/[^,;:–—]/g, "").length;
+  return letters + 2 * digits + 2 * pauses + (isLast ? 0 : 8);
+}
+
+function spread(text: string, spans: { s: number; e: number }[], durationSec: number): SentenceTiming[] {
+  const weights = spans.map(({ s, e }, i) => speechWeight(text.slice(s, e), i === spans.length - 1));
   const total = weights.reduce((a, b) => a + b, 0);
   let t = 0;
   return spans.map(({ s, e }, i) => {
@@ -39,6 +56,12 @@ export function sentenceTimings(text: string, durationSec: number, alignment?: A
     t = i === spans.length - 1 ? durationSec : t + (durationSec * weights[i]) / total;
     return { s, e, t0: round(t0), t1: round(t) };
   });
+}
+
+/** Estimated sentence timings for a voice that doesn't report them (every voice but ElevenLabs). */
+export function estimateTimings(text: string, durationSec: number): SentenceTiming[] {
+  const spans = sentenceSpans(text);
+  return spans.length ? spread(text, spans, durationSec) : [];
 }
 
 const round = (x: number) => Math.round(x * 1000) / 1000;

@@ -13,8 +13,8 @@ export default function manifest(): MetadataRoute.Manifest {
     scope: "/",
     display: "standalone",
     orientation: "portrait",
-    background_color: "#0f211b",
-    theme_color: "#0f211b",
+    background_color: "#0b1411",
+    theme_color: "#0b1411",
     // Chrome/Android: reopening the app focuses the window that's already playing instead of starting another.
     launch_handler: { client_mode: ["focus-existing", "auto"] },
     icons: [

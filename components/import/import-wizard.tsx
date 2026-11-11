@@ -16,6 +16,7 @@ import { pagesInRange } from "@/lib/book/prepare";
 import { formatDuration, CHARS_PER_SECOND } from "@/lib/book/progress-math";
 import { suggestStartPage } from "@/lib/book/start";
 import type { ChapterDraft } from "@/lib/book/types";
+import { coverFromPdf, saveCover } from "@/lib/cover-image";
 import { BUCKET } from "@/lib/env";
 import { cleanPages } from "@/lib/pdf/clean";
 import { extractPdf } from "@/lib/pdf/extract";
@@ -196,6 +197,12 @@ export function ImportWizard() {
           chunks: built.chunks,
         },
       });
+      // The PDF's first page becomes the cover when it is one (a plain title page keeps a cloth cover).
+      // A book without a cover photo is still a book, so a failure here never blocks the import.
+      try {
+        const cover = await coverFromPdf(doc.pdf);
+        if (cover.photoLike) await saveCover(id, cover);
+      } catch {}
       router.push(`/book/${id}`);
     } catch (e) {
       toast.error((e as Error).message);

@@ -17,8 +17,6 @@ const VOICES: [string, string][] = [
   ["Puck", "Upbeat"], ["Laomedeia", "Upbeat"], ["Leda", "Youthful"], ["Fenrir", "Excitable"], ["Sadachbia", "Lively"],
 ];
 
-const STYLE = "Read this aloud as an audiobook narrator, in a warm, natural, steady voice:";
-
 function key(): string {
   const k = process.env.GEMINI_API_KEY;
   if (!k) throw new HttpError(500, "GEMINI_API_KEY is not set.");
@@ -38,7 +36,10 @@ export const gemini: TtsProvider = {
       method: "POST",
       headers: { "x-goog-api-key": key(), "Content-Type": "application/json" },
       body: JSON.stringify({
-        contents: [{ role: "user", parts: [{ text: `${STYLE}\n\n${text}` }] }],
+        // The book text only. Gemini 3.8 TTS treats this field as a word-for-word transcript, so any
+        // instruction placed here ("read this in a warm voice…") is spoken aloud. The tone comes from
+        // the voice you pick (Sulafat is the warm one).
+        contents: [{ role: "user", parts: [{ text }] }],
         generationConfig: {
           responseModalities: ["AUDIO"],
           speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: voiceId } } },

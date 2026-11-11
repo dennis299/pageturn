@@ -25,7 +25,7 @@ export const viewport: Viewport = {
   initialScale: 1,
   viewportFit: "cover",
   themeColor: [
-    { media: "(prefers-color-scheme: dark)", color: "#0f211b" },
+    { media: "(prefers-color-scheme: dark)", color: "#0b1411" },
     { media: "(prefers-color-scheme: light)", color: "#eef1ea" },
   ],
 };
@@ -37,7 +37,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         {/* Marks the phone platform before first paint, so iPhone and Android each get their native look. */}
         <script
           dangerouslySetInnerHTML={{
-            __html: `(function(){var u=navigator.userAgent,d=document.documentElement;var ios=/iPhone|iPad|iPod/.test(u)||(/Macintosh/.test(u)&&navigator.maxTouchPoints>1);d.dataset.platform=ios?"ios":/Android/.test(u)?"android":"desktop";if(window.matchMedia("(display-mode: standalone)").matches||navigator.standalone)d.dataset.standalone="1";})();`,
+            __html: `(function(){var u=navigator.userAgent,d=document.documentElement;var ios=/iPhone|iPad|iPod/.test(u)||(/Macintosh/.test(u)&&navigator.maxTouchPoints>1);var p=ios?"ios":/Android/.test(u)?"android":"desktop";try{var o=localStorage.getItem("ab-platform");if(o==="ios"||o==="android"||o==="desktop")p=o;}catch(e){}d.dataset.platform=p;if(window.matchMedia("(display-mode: standalone)").matches||navigator.standalone)d.dataset.standalone="1";})();`,
           }}
         />
       </head>

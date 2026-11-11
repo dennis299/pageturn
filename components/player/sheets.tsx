@@ -15,7 +15,7 @@ import { usePlayer, usePlayerStore } from "./player-provider";
 
 type SheetProps = { open: boolean; onOpenChange: (o: boolean) => void };
 
-function BottomSheet({ open, onOpenChange, title, description, children }: SheetProps & { title: string; description?: string; children: React.ReactNode }) {
+export function BottomSheet({ open, onOpenChange, title, description, children }: SheetProps & { title: string; description?: string; children: React.ReactNode }) {
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent side="bottom" className="pb-safe mx-auto max-h-[85dvh] max-w-xl rounded-t-2xl">

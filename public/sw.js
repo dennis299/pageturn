@@ -1,6 +1,7 @@
 // Pageturn service worker: keeps the app shell available offline.
 // Audio for downloaded chapters lives in the "ab-audio-v1" cache (written by the page).
-const SHELL = "ab-shell-v2";
+const SHELL = "ab-shell-v3";
+const COVERS = "ab-covers-v1";
 
 self.addEventListener("install", (event) => {
   event.waitUntil(caches.open(SHELL).then((c) => c.addAll(["/", "/manifest.webmanifest", "/icons/icon-192.png"])).catch(() => {}));
@@ -18,7 +19,26 @@ self.addEventListener("fetch", (event) => {
   const req = event.request;
   if (req.method !== "GET") return;
   const url = new URL(req.url);
-  if (url.origin !== self.location.origin || url.pathname.startsWith("/api/")) return;
+  if (url.origin !== self.location.origin) return;
+
+  // Cover photos: each address names one photo for good (?v=file), so keep it once fetched.
+  if (/^\/api\/books\/[^/]+\/cover$/.test(url.pathname)) {
+    event.respondWith(
+      caches.match(req).then(
+        (hit) =>
+          hit ||
+          fetch(req).then((res) => {
+            if (res.ok) {
+              const copy = res.clone();
+              caches.open(COVERS).then((c) => c.put(req, copy));
+            }
+            return res;
+          }),
+      ),
+    );
+    return;
+  }
+  if (url.pathname.startsWith("/api/")) return;
 
   // Pages: network first, fall back to the last copy we saw.
   if (req.mode === "navigate") {

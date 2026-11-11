@@ -20,6 +20,10 @@ export type BookRow = {
   approved_chapters: number[];
   source_path: string | null;
   recap: { posIdx: number; text: string; audioPath: string; at: string } | null;
+  /** Storage path of the cover photo ({uid}/{bookId}/cover-*.jpg), or null for a cloth cover. */
+  cover_path: string | null;
+  /** The colour taken from the cover (#rrggbb): lights the player and the shelf. */
+  cover_color: string | null;
   created_at: string;
   finished_at: string | null;
 };
